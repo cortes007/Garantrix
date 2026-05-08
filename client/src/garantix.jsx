@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 /* ─────────────────────────────────────────────
    DESIGN TOKENS
@@ -20,6 +20,20 @@ const T = {
   red:        "#FF6B6B",
   yellow:     "#FFC947",
 };
+
+const API = "http://localhost:3001";
+
+/* Helper fetch con credentials */
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API}${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...options.headers },
+    ...options,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Error del servidor");
+  return data;
+}
 
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -52,35 +66,22 @@ const GLOBAL_CSS = `
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
   .gtx-fade { animation: fadeIn 0.25s ease both; }
+  .gtx-spin { animation: spin 0.8s linear infinite; display: inline-block; }
 
   .gtx-config-input:focus {
     border-color: rgba(0,214,143,0.45) !important;
     box-shadow: 0 0 0 3px rgba(0,214,143,0.07);
     outline: none;
   }
+
+  .gtx-row:hover { background: rgba(255,255,255,0.03); }
 `;
-
-/* ─────────────────────────────────────────────
-   MOCK DATA
-───────────────────────────────────────────── */
-const GUARANTEES = [
-  { id: "#GTX-9901", client: "Juan Gómez",   product: "Reparación TV Samsung",  start: "10/Mar/2026", end: "10/Sep/2026", status: "ACTIVA",      claims: 0 },
-  { id: "#GTX-9902", client: "María López",  product: "Cambio Pantalla iPhone", start: "08/Mar/2026", end: "08/Sep/2026", status: "ACTIVA",      claims: 1 },
-  { id: "#GTX-9903", client: "Carlos Ríos",  product: "Reparación Laptop HP",   start: "05/Mar/2026", end: "05/Jun/2026", status: "RECLAMACIÓN", claims: 2 },
-  { id: "#GTX-9904", client: "Ana Torres",   product: "Cambio Batería MacBook", start: "01/Mar/2026", end: "01/Mar/2026", status: "VENCIDA",     claims: 0 },
-  { id: "#GTX-9900", client: "Juan Gómez",   product: "Reparación TV Samsung",  start: "28/Feb/2026", end: "28/Aug/2026", status: "ACTIVA",      claims: 0 },
-];
-
-const CLIENTS = [
-  { id: "#CL-101", name: "Juan Gómez",   email: "juan.g@email.com",    phone: "+57 300 111 2233", warranties: 5, lastActivity: "10/Mar/2026", status: "ACTIVO"   },
-  { id: "#CL-102", name: "María López",  email: "m.lopez@email.com",   phone: "+57 310 222 3344", warranties: 2, lastActivity: "12/Mar/2026", status: "INACTIVO" },
-  { id: "#CL-103", name: "Carlos Ríos",  email: "c.rios@email.com",    phone: "+57 320 333 4455", warranties: 2, lastActivity: "10/Mar/2026", status: "ACTIVO"   },
-  { id: "#CL-104", name: "Ana Torres",   email: "a.torres@email.com",  phone: "+57 315 444 5566", warranties: 6, lastActivity: "10/Mar/2026", status: "ACTIVO"   },
-  { id: "#CL-105", name: "Luis Herrera", email: "l.herrera@email.com", phone: "+57 311 555 6677", warranties: 2, lastActivity: "08/Mar/2026", status: "INACTIVO" },
-  { id: "#CL-106", name: "Sofía Méndez", email: "s.mendez@email.com",  phone: "+57 318 666 7788", warranties: 2, lastActivity: "12/Mar/2026", status: "INACTIVO" },
-  { id: "#CL-107", name: "Pedro Vargas", email: "p.vargas@email.com",  phone: "+57 312 777 8899", warranties: 5, lastActivity: "14/Feb/2026", status: "ACTIVO"   },
-];
 
 /* ─────────────────────────────────────────────
    SHARED COMPONENTS
@@ -101,19 +102,68 @@ function Logo() {
 
 function Badge({ status }) {
   const map = {
-    ACTIVA:      { bg: "rgba(0,214,143,0.12)", color: T.green,  border: "rgba(0,214,143,0.2)" },
-    ACTIVO:      { bg: "rgba(0,214,143,0.12)", color: T.green,  border: "rgba(0,214,143,0.2)" },
-    VENCIDA:     { bg: "rgba(255,80,80,0.10)", color: T.red,    border: "rgba(255,80,80,0.2)"  },
-    INACTIVO:    { bg: "rgba(255,80,80,0.10)", color: T.red,    border: "rgba(255,80,80,0.2)"  },
-    RECLAMACIÓN: { bg: "rgba(255,180,0,0.10)", color: T.yellow, border: "rgba(255,180,0,0.2)"  },
+    ACTIVA:      { bg: "rgba(0,214,143,0.12)",   color: T.green,  border: "rgba(0,214,143,0.2)"  },
+    ACTIVO:      { bg: "rgba(0,214,143,0.12)",   color: T.green,  border: "rgba(0,214,143,0.2)"  },
+    VENCIDA:     { bg: "rgba(255,80,80,0.10)",   color: T.red,    border: "rgba(255,80,80,0.2)"  },
+    INACTIVO:    { bg: "rgba(255,80,80,0.10)",   color: T.red,    border: "rgba(255,80,80,0.2)"  },
+    RECLAMACIÓN: { bg: "rgba(255,180,0,0.10)",   color: T.yellow, border: "rgba(255,180,0,0.2)"  },
+    RESUELTA:    { bg: "rgba(26,127,221,0.12)",  color: T.blue,   border: "rgba(26,127,221,0.2)" },
+    PENDIENTE:   { bg: "rgba(255,180,0,0.10)",   color: T.yellow, border: "rgba(255,180,0,0.2)"  },
+    EN_PROCESO:  { bg: "rgba(26,127,221,0.12)",  color: T.blue,   border: "rgba(26,127,221,0.2)" },
   };
   const s = map[status] || map.ACTIVA;
   return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{status}</span>
+    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+      {status}
+    </span>
   );
 }
 
+function Spinner({ size = 18 }) {
+  return <i className="ti ti-loader-2 gtx-spin" style={{ fontSize: size, color: T.green }} />;
+}
+
+function Feedback({ msg }) {
+  if (!msg) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, fontSize: 13, background: msg.type === "ok" ? "rgba(0,214,143,0.08)" : "rgba(255,107,107,0.08)", border: `1px solid ${msg.type === "ok" ? "rgba(0,214,143,0.2)" : "rgba(255,107,107,0.2)"}`, color: msg.type === "ok" ? T.green : T.red }}>
+      <i className={`ti ${msg.type === "ok" ? "ti-circle-check" : "ti-alert-circle"}`} style={{ fontSize: 16 }} />
+      {msg.text}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, sub }) {
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 40 }}>
+      <i className={`ti ${icon}`} style={{ fontSize: 36, color: T.muted, opacity: 0.3 }} />
+      <div style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 600, color: T.muted }}>{title}</div>
+      {sub && <div style={{ fontSize: 12, color: T.muted, opacity: 0.6, textAlign: "center" }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   QR PANEL — validación rápida lateral
+───────────────────────────────────────────── */
 function QRPanel() {
+  const [code, setCode]       = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState(null); // null | { ok, warranty } | { ok: false }
+
+  const validate = async () => {
+    if (!code.trim()) return;
+    setLoading(true); setResult(null);
+    try {
+      const data = await apiFetch(`/api/warranties/public/${encodeURIComponent(code.trim())}`);
+      setResult({ ok: true, warranty: data.warranty });
+    } catch {
+      setResult({ ok: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ background: T.navy3, border: `1px solid ${T.border}`, borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
       <span style={{ fontFamily: "Syne", fontSize: 13, fontWeight: 600, alignSelf: "flex-start" }}>Validación Rápida</span>
@@ -124,9 +174,34 @@ function QRPanel() {
         <i className="ti ti-qrcode" style={{ fontSize: 40, color: T.muted, opacity: 0.4 }} />
       </div>
       <div style={{ width: "100%" }}>
-        <input placeholder="Ingrese ID de garantía manualmente" style={{ width: "100%", background: "rgba(0,0,0,0.25)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "9px 12px", fontSize: 12, color: T.text, outline: "none", marginBottom: 8 }} />
-        <button style={{ width: "100%", background: T.green, color: T.navy, border: "none", borderRadius: 7, padding: 10, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.05em", cursor: "pointer", textTransform: "uppercase" }}>Validar QR o ID</button>
+        <input
+          value={code}
+          onChange={e => { setCode(e.target.value); setResult(null); }}
+          onKeyDown={e => e.key === "Enter" && validate()}
+          placeholder="Ej. #GTX-9901"
+          style={{ width: "100%", background: "rgba(0,0,0,0.25)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "9px 12px", fontSize: 12, color: T.text, outline: "none", marginBottom: 8 }}
+        />
+        <button onClick={validate} disabled={loading || !code.trim()} style={{ width: "100%", background: T.green, color: T.navy, border: "none", borderRadius: 7, padding: 10, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.05em", cursor: "pointer", textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, opacity: loading ? 0.7 : 1 }}>
+          {loading ? <Spinner size={14} /> : <i className="ti ti-search" style={{ fontSize: 14 }} />}
+          Validar QR o ID
+        </button>
       </div>
+      {result && (
+        <div className="gtx-fade" style={{ width: "100%", padding: 10, borderRadius: 8, background: result.ok ? "rgba(0,214,143,0.08)" : "rgba(255,107,107,0.08)", border: `1px solid ${result.ok ? "rgba(0,214,143,0.2)" : "rgba(255,107,107,0.2)"}` }}>
+          {result.ok ? (
+            <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ color: T.green, fontWeight: 700, fontFamily: "Syne" }}>✓ {result.warranty.warrantyCode}</div>
+              <div style={{ color: T.muted }}>{result.warranty.product}</div>
+              <div style={{ color: T.muted }}>Cliente: {result.warranty.clientId?.name}</div>
+              <Badge status={result.warranty.status} />
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: T.red, display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="ti ti-shield-x" style={{ fontSize: 14 }} /> No encontrada
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -170,16 +245,28 @@ function TopBar({ title, action }) {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE: DASHBOARD
+   PAGE: DASHBOARD  (datos reales)
 ───────────────────────────────────────────── */
 function Dashboard({ setPage }) {
+  const [stats, setStats]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch("/api/stats")
+      .then(d => setStats(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmt = d => d ? new Date(d).toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) : "-";
+
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, flex: 1, overflow: "hidden" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
-            { label: "Garantías Activas", value: "145", icon: "ti-shield-check", accent: true },
-            { label: "Reclamaciones este mes", value: "8", icon: "ti-alert-triangle", accent: false },
+            { label: "Garantías Activas",       value: loading ? "…" : stats?.warranties?.active ?? 0, icon: "ti-shield-check",   accent: true  },
+            { label: "Reclamaciones Pendientes", value: loading ? "…" : stats?.claims?.pending   ?? 0, icon: "ti-alert-triangle", accent: false },
           ].map(({ label, value, icon, accent }) => (
             <div key={label} style={{ background: accent ? T.blueSoft : T.card, border: `1px solid ${accent ? "rgba(26,127,221,0.25)" : T.border}`, borderRadius: 12, padding: "16px 18px", position: "relative" }}>
               <div style={{ fontSize: 11.5, color: T.muted, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 8 }}>{label}</div>
@@ -191,41 +278,47 @@ function Dashboard({ setPage }) {
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", flex: 1 }}>
           <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 600 }}>Garantías Recientes</span>
-            <button style={{ fontSize: 12, color: T.green, border: "none", background: "none", cursor: "pointer" }}>Ver todas →</button>
+            <button onClick={() => setPage("nueva")} style={{ fontSize: 12, color: T.green, border: "none", background: "none", cursor: "pointer" }}>+ Nueva →</button>
           </div>
           <div style={{ overflowY: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                  {["ID","Cliente","Producto","Fecha Inicio","Estado"].map(h => (
-                    <th key={h} style={{ padding: "10px 18px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {GUARANTEES.map(g => (
-                  <tr key={g.id} style={{ borderBottom: `1px solid ${T.border}` }}>
-                    <td style={{ padding: "11px 18px", fontFamily: "Syne", fontSize: 12, color: T.green, fontWeight: 600 }}>{g.id}</td>
-                    <td style={{ padding: "11px 18px", fontSize: 13 }}>{g.client}</td>
-                    <td style={{ padding: "11px 18px", fontSize: 13 }}>{g.product}</td>
-                    <td style={{ padding: "11px 18px", fontSize: 13, color: T.muted }}>{g.start}</td>
-                    <td style={{ padding: "11px 18px" }}><Badge status={g.status} /></td>
+            {loading ? (
+              <div style={{ padding: 32, display: "flex", justifyContent: "center" }}><Spinner size={24} /></div>
+            ) : stats?.recentWarranties?.length === 0 ? (
+              <EmptyState icon="ti-shield-off" title="Sin garantías aún" sub="Crea tu primera garantía" />
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                    {["ID","Cliente","Producto","Fecha","Estado"].map(h => (
+                      <th key={h} style={{ padding: "10px 18px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(stats?.recentWarranties || []).map(g => (
+                    <tr key={g._id} className="gtx-row" style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "11px 18px", fontFamily: "Syne", fontSize: 12, color: T.green, fontWeight: 600 }}>{g.warrantyCode}</td>
+                      <td style={{ padding: "11px 18px", fontSize: 13 }}>{g.clientId?.name || "-"}</td>
+                      <td style={{ padding: "11px 18px", fontSize: 13 }}>{g.product}</td>
+                      <td style={{ padding: "11px 18px", fontSize: 13, color: T.muted }}>{fmt(g.createdAt)}</td>
+                      <td style={{ padding: "11px 18px" }}><Badge status={g.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <QRPanel />
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px" }}>
-          <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Resumen del mes</div>
-          {[
-            { label: "Garantías registradas", val: "23", color: T.green  },
-            { label: "Vencimientos próximos", val: "5",  color: T.yellow },
-            { label: "Reclamaciones activas", val: "3",  color: T.red    },
-            { label: "Resueltas este mes",    val: "12", color: T.text   },
+          <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Resumen General</div>
+          {loading ? <div style={{ display:"flex", justifyContent:"center", padding:16 }}><Spinner /></div> : [
+            { label: "Total garantías",       val: stats?.warranties?.total    ?? 0, color: T.text   },
+            { label: "Vencidas",              val: stats?.warranties?.expired  ?? 0, color: T.red    },
+            { label: "En reclamación",        val: stats?.warranties?.inClaim  ?? 0, color: T.yellow },
+            { label: "Total clientes",        val: stats?.clients?.total       ?? 0, color: T.green  },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>
               <span style={{ color: T.muted }}>{label}</span>
@@ -239,13 +332,85 @@ function Dashboard({ setPage }) {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE: NUEVA GARANTÍA
+   PAGE: NUEVA GARANTÍA  (funcional)
 ───────────────────────────────────────────── */
 function NuevaGarantia({ setPage }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", invoice: "", description: "", purchaseDate: "", duration: "6 meses", durationFrom: "Desde hoy" });
+  const [form, setForm] = useState({
+    clientName: "", clientEmail: "", clientPhone: "",
+    product: "", invoiceNumber: "", purchaseDate: "",
+    duration: "6", durationFrom: "today",
+  });
+  const [saving,  setSaving]  = useState(false);
+  const [msg,     setMsg]     = useState(null);
+  const [created, setCreated] = useState(null); // garantía recién creada
+
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const calcDates = () => {
+    const base = form.durationFrom === "today"
+      ? new Date()
+      : form.purchaseDate ? new Date(form.purchaseDate) : new Date();
+    const start = new Date(base);
+    const end   = new Date(base);
+    end.setMonth(end.getMonth() + parseInt(form.duration));
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  };
+
+  const handleSubmit = async () => {
+    const { clientName, clientEmail, product, purchaseDate } = form;
+    if (!clientName || !clientEmail || !product || !purchaseDate) {
+      setMsg({ type: "err", text: "Nombre, email, producto y fecha de compra son obligatorios" });
+      return;
+    }
+    setSaving(true); setMsg(null);
+    try {
+      // 1. Crear o encontrar cliente
+      let clientId;
+      try {
+        const clientsData = await apiFetch(`/api/clients?search=${encodeURIComponent(clientEmail)}`);
+        const existing = clientsData.clients?.find(c => c.email.toLowerCase() === clientEmail.toLowerCase());
+        if (existing) {
+          clientId = existing._id;
+        } else {
+          const newClient = await apiFetch("/api/clients", {
+            method: "POST",
+            body: JSON.stringify({ name: clientName, email: clientEmail, phone: form.clientPhone }),
+          });
+          clientId = newClient.client._id;
+        }
+      } catch {
+        const newClient = await apiFetch("/api/clients", {
+          method: "POST",
+          body: JSON.stringify({ name: clientName, email: clientEmail, phone: form.clientPhone }),
+        });
+        clientId = newClient.client._id;
+      }
+
+      // 2. Crear garantía
+      const { startDate, endDate } = calcDates();
+      const result = await apiFetch("/api/warranties", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId, product: form.product,
+          invoiceNumber: form.invoiceNumber,
+          purchaseDate: new Date(form.purchaseDate).toISOString(),
+          startDate, endDate,
+        }),
+      });
+
+      setCreated(result.warranty);
+      setMsg({ type: "ok", text: `Garantía ${result.warranty.warrantyCode} creada exitosamente` });
+      setForm({ clientName:"", clientEmail:"", clientPhone:"", product:"", invoiceNumber:"", purchaseDate:"", duration:"6", durationFrom:"today" });
+    } catch (err) {
+      setMsg({ type: "err", text: err.message || "Error al crear garantía" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const fieldStyle = { background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "9px 12px", fontSize: 13, color: T.text, outline: "none", width: "100%" };
   const labelStyle = { fontSize: 11.5, color: T.muted, marginBottom: 5, display: "block" };
+
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, flex: 1, overflow: "auto" }}>
       <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -254,38 +419,80 @@ function NuevaGarantia({ setPage }) {
           <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>Registrar Nueva Garantía</span>
         </div>
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
+          {/* Sección cliente */}
           <div style={{ fontSize: 10.5, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>Datos del Cliente</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={labelStyle}>Nombre del Cliente</label><input style={fieldStyle} value={form.name} onChange={set("name")} placeholder="Ej. Juan Gómez" /></div>
-            <div><label style={labelStyle}>Email del Cliente</label><input style={fieldStyle} type="email" value={form.email} onChange={set("email")} placeholder="correo@ejemplo.com" /></div>
+            <div>
+              <label style={labelStyle}>Nombre del Cliente *</label>
+              <input style={fieldStyle} value={form.clientName} onChange={set("clientName")} placeholder="Ej. Juan Gómez" />
+            </div>
+            <div>
+              <label style={labelStyle}>Email del Cliente *</label>
+              <input style={fieldStyle} type="email" value={form.clientEmail} onChange={set("clientEmail")} placeholder="correo@ejemplo.com" />
+            </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={labelStyle}>Teléfono del Cliente</label><input style={fieldStyle} type="tel" value={form.phone} onChange={set("phone")} placeholder="+57 300 000 0000" /></div>
-            <div><label style={labelStyle}>Número de Factura</label><input style={fieldStyle} value={form.invoice} onChange={set("invoice")} placeholder="Ej. FAC-20260001" /></div>
+            <div>
+              <label style={labelStyle}>Teléfono del Cliente</label>
+              <input style={fieldStyle} type="tel" value={form.clientPhone} onChange={set("clientPhone")} placeholder="+57 300 000 0000" />
+            </div>
+            <div>
+              <label style={labelStyle}>Número de Factura</label>
+              <input style={fieldStyle} value={form.invoiceNumber} onChange={set("invoiceNumber")} placeholder="Ej. FAC-20260001" />
+            </div>
           </div>
+
+          {/* Sección producto */}
           <div style={{ fontSize: 10.5, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>Detalles del Producto</div>
           <div>
-            <label style={labelStyle}>Descripción del Producto / Servicio</label>
-            <textarea style={{ ...fieldStyle, resize: "none", height: 72, lineHeight: 1.5 }} value={form.description} onChange={set("description")} placeholder="Ej. Reparación TV Samsung 55', cambio de panel..." />
+            <label style={labelStyle}>Descripción del Producto / Servicio *</label>
+            <textarea style={{ ...fieldStyle, resize: "none", height: 72, lineHeight: 1.5 }} value={form.product} onChange={set("product")} placeholder="Ej. Reparación TV Samsung 55', cambio de panel..." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={labelStyle}>Fecha de Compra</label><input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.purchaseDate} onChange={set("purchaseDate")} /></div>
+            <div>
+              <label style={labelStyle}>Fecha de Compra *</label>
+              <input type="date" style={{ ...fieldStyle, colorScheme: "dark" }} value={form.purchaseDate} onChange={set("purchaseDate")} />
+            </div>
             <div>
               <label style={labelStyle}>Duración de la Garantía</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.duration} onChange={set("duration")}>{["3 meses","6 meses","1 año","2 años"].map(o => <option key={o}>{o}</option>)}</select>
-                <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.durationFrom} onChange={set("durationFrom")}>{["Desde hoy","Desde factura","Personalizado"].map(o => <option key={o}>{o}</option>)}</select>
+                <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.duration} onChange={set("duration")}>
+                  <option value="3">3 meses</option>
+                  <option value="6">6 meses</option>
+                  <option value="12">1 año</option>
+                  <option value="24">2 años</option>
+                </select>
+                <select style={{ ...fieldStyle, cursor: "pointer" }} value={form.durationFrom} onChange={set("durationFrom")}>
+                  <option value="today">Desde hoy</option>
+                  <option value="purchase">Desde factura</option>
+                </select>
               </div>
             </div>
           </div>
+
+          {msg && <Feedback msg={msg} />}
+
+          {/* Garantía creada: mostrar código */}
+          {created && (
+            <div className="gtx-fade" style={{ background: "rgba(0,214,143,0.06)", border: "1px solid rgba(0,214,143,0.2)", borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontFamily: "Syne", fontSize: 13, fontWeight: 600, color: T.green }}>🎉 Garantía generada</div>
+              <div style={{ fontSize: 12, color: T.muted }}>
+                <strong style={{ color: T.text }}>Código:</strong> {created.warrantyCode}<br />
+                <strong style={{ color: T.text }}>QR URL:</strong> <a href={created.qrData} target="_blank" rel="noreferrer" style={{ color: T.green }}>{created.qrData}</a>
+              </div>
+            </div>
+          )}
         </div>
+
         <div style={{ padding: "16px 20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
           <button onClick={() => setPage("dashboard")} style={{ padding: "9px 20px", borderRadius: 7, border: `1px solid ${T.border}`, background: "none", color: T.muted, cursor: "pointer", fontSize: 13 }}>Cancelar</button>
-          <button style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 7, background: T.green, color: T.navy, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            <i className="ti ti-qrcode" style={{ fontSize: 16 }} />Generar Garantía y QR
+          <button onClick={handleSubmit} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 7, background: T.green, color: T.navy, border: "none", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            {saving ? <Spinner size={14} /> : <i className="ti ti-qrcode" style={{ fontSize: 16 }} />}
+            {saving ? "Guardando..." : "Generar Garantía y QR"}
           </button>
         </div>
       </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <QRPanel />
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px" }}>
@@ -293,10 +500,9 @@ function NuevaGarantia({ setPage }) {
           {[
             { icon: "ti-hash",         text: <>Un ID único tipo <strong style={{ color: T.text }}>#GTX-XXXX</strong></> },
             { icon: "ti-qrcode",       text: "Código QR vinculado al ID para validación instantánea" },
-            { icon: "ti-mail",         text: "Correo automático al cliente con sus datos y el QR" },
             { icon: "ti-shield-check", text: <>Registro con estado <strong style={{ color: T.green }}>ACTIVA</strong></> },
           ].map(({ icon, text }, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: i < 3 ? `1px solid ${T.border}` : "none", fontSize: 12 }}>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: i < 2 ? `1px solid ${T.border}` : "none", fontSize: 12 }}>
               <i className={`ti ${icon}`} style={{ fontSize: 14, color: T.green, marginTop: 1 }} />
               <span style={{ color: T.muted, lineHeight: 1.4 }}>{text}</span>
             </div>
@@ -308,26 +514,42 @@ function NuevaGarantia({ setPage }) {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE: VALIDAR QR
+   PAGE: VALIDAR QR  (funcional)
 ───────────────────────────────────────────── */
 function ValidarQR() {
-  const [scanState, setScanState] = useState("idle");
   const [cameraOn, setCameraOn] = useState(false);
-  const resultColors = { idle: T.border, valid: "rgba(0,214,143,0.3)", invalid: "rgba(255,107,107,0.3)" };
+  const [code, setCode]         = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null); // null | { ok, warranty } | { ok:false }
+
+  const validate = async (searchCode) => {
+    const c = (searchCode || code).trim();
+    if (!c) return;
+    setLoading(true); setResult(null);
+    try {
+      const data = await apiFetch(`/api/warranties/public/${encodeURIComponent(c)}`);
+      setResult({ ok: true, warranty: data.warranty });
+    } catch {
+      setResult({ ok: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fmt = d => d ? new Date(d).toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) : "-";
+
+  const resultBorder = result === null ? T.border : result.ok ? "rgba(0,214,143,0.3)" : "rgba(255,107,107,0.3)";
+
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, flex: 1, overflow: "hidden" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`, background: T.card, borderRadius: "10px 10px 0 0", overflow: "hidden" }}>
-          {[{ key:"idle", label:"En espera" },{ key:"valid", label:"✓ Garantía válida" },{ key:"invalid", label:"✗ No encontrada" }].map(({ key, label }) => (
-            <button key={key} onClick={() => setScanState(key)} style={{ padding: "10px 18px", fontSize: 12, color: scanState===key ? T.green : T.muted, borderBottom: `2px solid ${scanState===key ? T.green : "transparent"}`, border: "none", background: "none", cursor: "pointer", fontWeight: 500, transition: "all 0.15s" }}>{label}</button>
-          ))}
-        </div>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: "0 0 14px 14px", overflow: "hidden", flex: 1 }}>
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", flex: 1 }}>
           <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
             <i className="ti ti-qrcode" style={{ fontSize: 18, color: T.green }} />
             <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>Validación de Garantía</span>
           </div>
           <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {/* Columna cámara */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 <span style={{ width: 20, height: 20, borderRadius: "50%", background: T.greenSoft, border: `1px solid rgba(0,214,143,0.3)`, color: T.green, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
@@ -344,41 +566,64 @@ function ValidarQR() {
                   <i className="ti ti-camera" style={{ fontSize: 14 }} />{cameraOn ? "Detener Cámara" : "Activar Cámara"}
                 </button>
               </div>
+              {/* Búsqueda manual */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  value={code}
+                  onChange={e => { setCode(e.target.value); setResult(null); }}
+                  onKeyDown={e => e.key === "Enter" && validate()}
+                  placeholder="O ingresa el ID manualmente: #GTX-XXXX"
+                  style={{ flex: 1, background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "9px 12px", fontSize: 12, color: T.text, outline: "none" }}
+                />
+                <button onClick={() => validate()} disabled={loading || !code.trim()} style={{ padding: "9px 14px", background: T.green, color: T.navy, border: "none", borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                  {loading ? <Spinner size={14} /> : <i className="ti ti-search" style={{ fontSize: 14 }} />}
+                </button>
+              </div>
             </div>
+
+            {/* Columna resultado */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 <span style={{ width: 20, height: 20, borderRadius: "50%", background: T.greenSoft, border: `1px solid rgba(0,214,143,0.3)`, color: T.green, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>2</span>
-                Validar Detalles
+                Resultado
               </div>
-              <div style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${resultColors[scanState]}`, borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 200, transition: "border-color 0.3s" }}>
-                {scanState === "idle" && (
+              <div style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${resultBorder}`, borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 10, flex: 1, minHeight: 200, transition: "border-color 0.3s" }}>
+                {result === null && !loading && (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     <i className="ti ti-shield-search" style={{ fontSize: 32, color: T.muted, opacity: 0.3 }} />
                     <p style={{ fontSize: 12, color: T.muted, textAlign: "center", lineHeight: 1.5 }}>Escanea un QR o ingresa un ID<br />para ver los detalles aquí</p>
                   </div>
                 )}
-                {scanState === "valid" && (
+                {loading && (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><Spinner size={28} /></div>
+                )}
+                {result?.ok && (
                   <div className="gtx-fade" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <div style={{ paddingBottom: 10, borderBottom: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: 12, color: T.muted }}>ID: <span style={{ color: T.green, fontWeight: 600 }}>#GTX-9904</span></div>
+                      <div style={{ fontSize: 12, color: T.muted }}>ID: <span style={{ color: T.green, fontWeight: 600 }}>{result.warranty.warrantyCode}</span></div>
                       <div style={{ fontFamily: "Syne", fontSize: 22, fontWeight: 700, color: T.green }}>✓ VÁLIDA</div>
+                      <Badge status={result.warranty.status} />
                     </div>
-                    {[["Cliente","Juan Gómez"],["Producto","Reparación TV Samsung"],["Fecha Inicio","10/Mar/2026"],["Vence","10/Sep/2026"],["Reclamaciones","1 de ∞"]].map(([k,v],i,a) => (
-                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: i<a.length-1?`1px solid ${T.border}`:"none", fontSize: 12.5 }}>
-                        <span style={{ color: T.muted }}>{k}</span><span style={{ fontWeight: 500 }}>{v}</span>
+                    {[
+                      ["Cliente",    result.warranty.clientId?.name],
+                      ["Email",      result.warranty.clientId?.email],
+                      ["Producto",   result.warranty.product],
+                      ["Inicio",     fmt(result.warranty.startDate)],
+                      ["Vence",      fmt(result.warranty.endDate)],
+                      ["Negocio",    result.warranty.userId?.businessName],
+                    ].map(([k, v], i, a) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: i < a.length-1 ? `1px solid ${T.border}` : "none", fontSize: 12.5 }}>
+                        <span style={{ color: T.muted }}>{k}</span>
+                        <span style={{ fontWeight: 500 }}>{v || "-"}</span>
                       </div>
                     ))}
-                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      <button style={{ flex: 1, padding: 9, borderRadius: 7, border: `1px solid ${T.border}`, background: "none", color: T.text, fontSize: 12, fontWeight: 500, cursor: "pointer" }}><i className="ti ti-eye" /> Ver Completo</button>
-                      <button style={{ flex: 1, padding: 9, borderRadius: 7, border: `1px solid rgba(255,180,0,0.2)`, background: "rgba(255,180,0,0.1)", color: T.yellow, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><i className="ti ti-alert-triangle" /> Reclamación</button>
-                    </div>
                   </div>
                 )}
-                {scanState === "invalid" && (
+                {result?.ok === false && (
                   <div className="gtx-fade" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     <i className="ti ti-shield-x" style={{ fontSize: 32, color: T.red }} />
                     <div style={{ fontFamily: "Syne", fontSize: 16, fontWeight: 700, color: T.red }}>No Encontrada</div>
-                    <p style={{ fontSize: 12, color: T.muted, textAlign: "center", lineHeight: 1.5 }}>No existe ninguna garantía con ese<br />ID o código QR en el sistema.</p>
+                    <p style={{ fontSize: 12, color: T.muted, textAlign: "center", lineHeight: 1.5 }}>No existe ninguna garantía con ese<br />ID en el sistema.</p>
                   </div>
                 )}
               </div>
@@ -392,10 +637,10 @@ function ValidarQR() {
           <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Guía rápida</div>
           {[
             { icon: "ti-qrcode",         text: "Activa la cámara y apunta al QR del cliente para validar al instante" },
-            { icon: "ti-keyboard",       text: "También puedes escribir el ID manualmente en el panel derecho" },
-            { icon: "ti-alert-triangle", text: "Si la garantía es válida, podrás iniciar una reclamación desde aquí" },
+            { icon: "ti-keyboard",       text: "También puedes escribir el ID manualmente en el panel izquierdo" },
+            { icon: "ti-alert-triangle", text: "Si la garantía es válida, podrás ver todos sus detalles" },
           ].map(({ icon, text }, i, a) => (
-            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: i<a.length-1?`1px solid ${T.border}`:"none", fontSize: 12 }}>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: i < a.length-1 ? `1px solid ${T.border}` : "none", fontSize: 12 }}>
               <i className={`ti ${icon}`} style={{ fontSize: 14, color: T.green, marginTop: 1 }} />
               <span style={{ color: T.muted, lineHeight: 1.4 }}>{text}</span>
             </div>
@@ -407,24 +652,54 @@ function ValidarQR() {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE: CLIENTES
+   PAGE: CLIENTES  (datos reales)
 ───────────────────────────────────────────── */
-function Clientes() {
-  const [search, setSearch] = useState("");
+function Clientes({ setPage }) {
+  const [clients,  setClients]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState("");
   const [openMenu, setOpenMenu] = useState(null);
-  const filtered = CLIENTS.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    c.id.toLowerCase().includes(search.toLowerCase())
-  );
+  const [deleting, setDeleting] = useState(null);
+  const [msg,      setMsg]      = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/api/clients?search=${encodeURIComponent(search)}`);
+      setClients(data.clients || []);
+    } catch {
+      setMsg({ type: "err", text: "Error al cargar clientes" });
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("¿Eliminar este cliente?")) return;
+    setDeleting(id);
+    try {
+      await apiFetch(`/api/clients/${id}`, { method: "DELETE" });
+      setClients(prev => prev.filter(c => c._id !== id));
+    } catch (err) {
+      setMsg({ type: "err", text: err.message });
+    } finally {
+      setDeleting(null); setOpenMenu(null);
+    }
+  };
+
+  const fmt = d => d ? new Date(d).toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) : "-";
+
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, flex: 1, overflow: "hidden" }}>
       <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {msg && <div style={{ marginBottom: 10 }}><Feedback msg={msg} /></div>}
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden", flex: 1 }}>
           <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>Directorio de Clientes</span>
-              <span style={{ background: T.greenSoft, color: T.green, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, border: `1px solid rgba(0,214,143,0.2)` }}>{filtered.length} clientes</span>
+              <span style={{ background: T.greenSoft, color: T.green, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, border: `1px solid rgba(0,214,143,0.2)` }}>{clients.length} clientes</span>
             </div>
             <div style={{ position: "relative" }}>
               <i className="ti ti-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: T.muted, pointerEvents: "none" }} />
@@ -432,44 +707,46 @@ function Clientes() {
             </div>
           </div>
           <div style={{ overflowY: "auto", flex: 1 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: `1px solid ${T.border}`, background: "#0d1b30", position: "sticky", top: 0, zIndex: 1 }}>
-                  {["ID Cliente","Nombre","Email","Teléfono","Garantías","Última Actividad","Estado",""].map(h => (
-                    <th key={h} style={{ padding: "10px 16px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c, idx) => (
-                  <tr key={c.id} style={{ borderBottom: `1px solid ${T.border}` }}>
-                    <td style={{ padding: "11px 16px", fontFamily: "Syne", fontSize: 12, color: T.green, fontWeight: 600 }}>{c.id}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 13, whiteSpace: "nowrap" }}>{c.name}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted }}>{c.email}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{c.phone}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 13, textAlign: "center" }}>{c.warranties}</td>
-                    <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{c.lastActivity}</td>
-                    <td style={{ padding: "11px 16px" }}><Badge status={c.status} /></td>
-                    <td style={{ padding: "11px 16px", textAlign: "right", position: "relative" }}>
-                      <button onClick={() => setOpenMenu(openMenu === idx ? null : idx)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "4px 8px", color: T.muted, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>⋯</button>
-                      {openMenu === idx && (
-                        <div style={{ position: "absolute", right: 0, top: "calc(100% - 4px)", background: "#162340", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, zIndex: 10, minWidth: 170, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-                          {[{ icon: "ti-shield-check", label: "Ver Garantías" },{ icon: "ti-edit", label: "Editar Información" },{ icon: "ti-plus", label: "Nueva Reclamación" }].map(({ icon, label }) => (
-                            <button key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
-                              <i className={`ti ${icon}`} style={{ fontSize: 15, color: T.muted }} /> {label}
-                            </button>
-                          ))}
-                          <div style={{ borderTop: `1px solid ${T.border}`, margin: "3px 0" }} />
-                          <button style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.red, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
-                            <i className="ti ti-trash" style={{ fontSize: 15, color: T.red }} /> Eliminar Cliente
-                          </button>
-                        </div>
-                      )}
-                    </td>
+            {loading ? (
+              <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><Spinner size={28} /></div>
+            ) : clients.length === 0 ? (
+              <EmptyState icon="ti-users-group" title="Sin clientes aún" sub={search ? "Ningún cliente coincide con la búsqueda" : "Los clientes se crean al registrar una garantía"} />
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${T.border}`, background: "#0d1b30", position: "sticky", top: 0, zIndex: 1 }}>
+                    {["Nombre","Email","Teléfono","Registrado","Estado",""].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {clients.map((c, idx) => (
+                    <tr key={c._id} className="gtx-row" style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "11px 16px", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>{c.name}</td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted }}>{c.email}</td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{c.phone || "-"}</td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{fmt(c.createdAt)}</td>
+                      <td style={{ padding: "11px 16px" }}><Badge status={c.active ? "ACTIVO" : "INACTIVO"} /></td>
+                      <td style={{ padding: "11px 16px", textAlign: "right", position: "relative" }}>
+                        <button onClick={() => setOpenMenu(openMenu === idx ? null : idx)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "4px 8px", color: T.muted, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>⋯</button>
+                        {openMenu === idx && (
+                          <div style={{ position: "absolute", right: 0, top: "calc(100% - 4px)", background: "#162340", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, zIndex: 10, minWidth: 170, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
+                            <button onClick={() => { setPage("nueva"); setOpenMenu(null); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
+                              <i className="ti ti-shield-plus" style={{ fontSize: 15, color: T.muted }} /> Nueva Garantía
+                            </button>
+                            <div style={{ borderTop: `1px solid ${T.border}`, margin: "3px 0" }} />
+                            <button onClick={() => handleDelete(c._id)} disabled={deleting === c._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.red, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
+                              {deleting === c._id ? <Spinner size={14} /> : <i className="ti ti-trash" style={{ fontSize: 15, color: T.red }} />} Eliminar Cliente
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
@@ -478,13 +755,13 @@ function Clientes() {
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px" }}>
           <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Resumen de Clientes</div>
           {[
-            { label: "Total registrados",  val: CLIENTS.length,                                    color: T.text   },
-            { label: "Clientes activos",   val: CLIENTS.filter(c=>c.status==="ACTIVO").length,     color: T.green  },
-            { label: "Clientes inactivos", val: CLIENTS.filter(c=>c.status==="INACTIVO").length,   color: T.yellow },
-            { label: "Con reclamaciones",  val: "2",                                               color: T.text   },
+            { label: "Total registrados",  val: clients.length,                                       color: T.text   },
+            { label: "Clientes activos",   val: clients.filter(c => c.active).length,                 color: T.green  },
+            { label: "Clientes inactivos", val: clients.filter(c => !c.active).length,                color: T.yellow },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>
-              <span style={{ color: T.muted }}>{label}</span><span style={{ color, fontWeight: 500 }}>{val}</span>
+              <span style={{ color: T.muted }}>{label}</span>
+              <span style={{ color, fontWeight: 500 }}>{val}</span>
             </div>
           ))}
         </div>
@@ -494,7 +771,7 @@ function Clientes() {
 }
 
 /* ─────────────────────────────────────────────
-   PAGE: CONFIGURACIÓN
+   PAGE: CONFIGURACIÓN  (funcional)
 ───────────────────────────────────────────── */
 function Configuracion({ user, onLogout }) {
   const [bizForm, setBizForm] = useState({ businessName: user?.businessName || "", email: user?.email || "", phone: user?.phone || "" });
@@ -505,7 +782,6 @@ function Configuracion({ user, onLogout }) {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg,    setPwMsg]    = useState(null);
   const [showPw,   setShowPw]   = useState({ current: false, next: false, confirm: false });
-
   const [loggingOut, setLoggingOut] = useState(false);
 
   const setBiz = k => e => setBizForm(f => ({ ...f, [k]: e.target.value }));
@@ -517,9 +793,10 @@ function Configuracion({ user, onLogout }) {
   const saveBiz = async () => {
     setBizSaving(true); setBizMsg(null);
     try {
-      const res = await fetch("/api/auth/update-profile", { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(bizForm) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      await apiFetch("/api/auth/profile", {
+        method: "PUT",
+        body: JSON.stringify({ businessName: bizForm.businessName, phone: bizForm.phone }),
+      });
       setBizMsg({ type: "ok", text: "Datos actualizados correctamente" });
     } catch (err) {
       setBizMsg({ type: "err", text: err.message || "Error al guardar" });
@@ -532,9 +809,10 @@ function Configuracion({ user, onLogout }) {
     if (pwForm.next.length < 8) { setPwMsg({ type: "err", text: "Mínimo 8 caracteres" }); return; }
     setPwSaving(true); setPwMsg(null);
     try {
-      const res = await fetch("/api/auth/change-password", { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      await apiFetch("/api/auth/change-password", {
+        method: "PUT",
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
       setPwMsg({ type: "ok", text: "Contraseña actualizada correctamente" });
       setPwForm({ current: "", next: "", confirm: "" });
     } catch (err) {
@@ -544,7 +822,7 @@ function Configuracion({ user, onLogout }) {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" });
     onLogout();
   };
 
@@ -557,12 +835,6 @@ function Configuracion({ user, onLogout }) {
       <div style={{ padding: 20 }}>{children}</div>
     </div>
   );
-
-  const Feedback = ({ msg }) => msg ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 8, fontSize: 13, background: msg.type==="ok" ? "rgba(0,214,143,0.08)" : "rgba(255,107,107,0.08)", border: `1px solid ${msg.type==="ok" ? "rgba(0,214,143,0.2)" : "rgba(255,107,107,0.2)"}`, color: msg.type==="ok" ? T.green : T.red }}>
-      <i className={`ti ${msg.type==="ok" ? "ti-circle-check" : "ti-alert-circle"}`} style={{ fontSize: 16 }} />{msg.text}
-    </div>
-  ) : null;
 
   const PwInput = ({ label, k }) => (
     <div>
@@ -578,28 +850,32 @@ function Configuracion({ user, onLogout }) {
 
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
-
-      {/* DATOS DEL NEGOCIO */}
       <SectionCard icon="ti-building-store" title="Datos del Negocio">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={labelStyle}>Nombre del Negocio</label>
-            <input className="gtx-config-input" style={inputStyle} value={bizForm.businessName} onChange={setBiz("businessName")} placeholder="Nombre del negocio" />
+            <input className="gtx-config-input" style={inputStyle} value={bizForm.businessName} onChange={setBiz("businessName")} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <div><label style={labelStyle}>Email de contacto</label><input className="gtx-config-input" type="email" style={inputStyle} value={bizForm.email} onChange={setBiz("email")} /></div>
-            <div><label style={labelStyle}>Teléfono</label><input className="gtx-config-input" type="tel" style={inputStyle} value={bizForm.phone} onChange={setBiz("phone")} /></div>
+            <div>
+              <label style={labelStyle}>Email (solo lectura)</label>
+              <input style={{ ...inputStyle, opacity: 0.5 }} value={bizForm.email} readOnly />
+            </div>
+            <div>
+              <label style={labelStyle}>Teléfono</label>
+              <input className="gtx-config-input" type="tel" style={inputStyle} value={bizForm.phone} onChange={setBiz("phone")} />
+            </div>
           </div>
           <Feedback msg={bizMsg} />
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button onClick={saveBiz} disabled={bizSaving} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 8, background: T.green, color: T.navy, border: "none", fontSize: 13, fontWeight: 700, cursor: bizSaving ? "not-allowed" : "pointer", opacity: bizSaving ? 0.7 : 1 }}>
-              <i className={`ti ${bizSaving ? "ti-loader-2" : "ti-device-floppy"}`} style={{ fontSize: 16 }} />{bizSaving ? "Guardando..." : "Guardar Cambios"}
+              {bizSaving ? <Spinner size={14} /> : <i className="ti ti-device-floppy" style={{ fontSize: 16 }} />}
+              {bizSaving ? "Guardando..." : "Guardar Cambios"}
             </button>
           </div>
         </div>
       </SectionCard>
 
-      {/* CAMBIAR CONTRASEÑA */}
       <SectionCard icon="ti-lock" title="Cambiar Contraseña">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <PwInput label="Contraseña actual" k="current" />
@@ -612,7 +888,7 @@ function Configuracion({ user, onLogout }) {
               <div style={{ display: "flex", gap: 4 }}>
                 {[1,2,3,4].map(i => {
                   const s = pwForm.next.length >= 12 ? 4 : pwForm.next.length >= 10 ? 3 : pwForm.next.length >= 8 ? 2 : 1;
-                  return <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i<=s ? (s===1?T.red:s===2?T.yellow:s===3?"#7EE8A2":T.green) : T.border, transition: "background 0.3s" }} />;
+                  return <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= s ? (s===1?T.red:s===2?T.yellow:s===3?"#7EE8A2":T.green) : T.border, transition: "background 0.3s" }} />;
                 })}
               </div>
               <span style={{ fontSize: 11, color: T.muted }}>{pwForm.next.length<8?"Muy corta":pwForm.next.length<10?"Débil":pwForm.next.length<12?"Buena":"Fuerte"}</span>
@@ -621,13 +897,13 @@ function Configuracion({ user, onLogout }) {
           <Feedback msg={pwMsg} />
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button onClick={savePw} disabled={pwSaving} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 22px", borderRadius: 8, background: T.green, color: T.navy, border: "none", fontSize: 13, fontWeight: 700, cursor: pwSaving ? "not-allowed" : "pointer", opacity: pwSaving ? 0.7 : 1 }}>
-              <i className={`ti ${pwSaving ? "ti-loader-2" : "ti-lock-check"}`} style={{ fontSize: 16 }} />{pwSaving ? "Guardando..." : "Actualizar Contraseña"}
+              {pwSaving ? <Spinner size={14} /> : <i className="ti ti-lock-check" style={{ fontSize: 16 }} />}
+              {pwSaving ? "Guardando..." : "Actualizar Contraseña"}
             </button>
           </div>
         </div>
       </SectionCard>
 
-      {/* CERRAR SESIÓN */}
       <SectionCard icon="ti-logout" title="Sesión">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -635,11 +911,11 @@ function Configuracion({ user, onLogout }) {
             <div style={{ fontSize: 12.5, color: T.muted }}>Saldrás del panel y deberás volver a iniciar sesión.</div>
           </div>
           <button onClick={handleLogout} disabled={loggingOut} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 8, background: "rgba(255,107,107,0.1)", color: T.red, border: `1px solid rgba(255,107,107,0.2)`, fontSize: 13, fontWeight: 600, cursor: loggingOut ? "not-allowed" : "pointer", opacity: loggingOut ? 0.7 : 1 }}>
-            <i className={`ti ${loggingOut ? "ti-loader-2" : "ti-logout"}`} style={{ fontSize: 16 }} />{loggingOut ? "Cerrando..." : "Cerrar Sesión"}
+            {loggingOut ? <Spinner size={14} /> : <i className="ti ti-logout" style={{ fontSize: 16 }} />}
+            {loggingOut ? "Cerrando..." : "Cerrar Sesión"}
           </button>
         </div>
       </SectionCard>
-
     </div>
   );
 }
@@ -649,8 +925,6 @@ function Configuracion({ user, onLogout }) {
 ───────────────────────────────────────────── */
 export default function App({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
-
-  // Nombre dinámico desde el usuario autenticado
   const businessName = user?.businessName || "Mi Negocio";
 
   const pageActions = {
@@ -667,10 +941,10 @@ export default function App({ user, onLogout }) {
   };
 
   const pages = {
-    dashboard: Dashboard,
-    nueva:     NuevaGarantia,
-    validar:   ValidarQR,
-    clientes:  Clientes,
+    dashboard: (props) => <Dashboard {...props} setPage={setPage} />,
+    nueva:     (props) => <NuevaGarantia {...props} setPage={setPage} />,
+    validar:   (props) => <ValidarQR {...props} />,
+    clientes:  (props) => <Clientes {...props} setPage={setPage} />,
     config:    (props) => <Configuracion {...props} user={user} onLogout={onLogout} />,
   };
 
