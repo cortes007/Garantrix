@@ -7,7 +7,7 @@ dist/
 build/
 
 # Variables de entorno (seguridad)
-.env
+
 .env.local
 .env.development.local
 
