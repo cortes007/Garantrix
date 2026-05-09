@@ -773,22 +773,82 @@ function Clientes({ setPage }) {
 /* ─────────────────────────────────────────────
    PAGE: CONFIGURACIÓN  (funcional)
 ───────────────────────────────────────────── */
-function Configuracion({ user, onLogout }) {
-  const [bizForm, setBizForm] = useState({ businessName: user?.businessName || "", email: user?.email || "", phone: user?.phone || "" });
-  const [bizSaving, setBizSaving] = useState(false);
-  const [bizMsg,    setBizMsg]    = useState(null);
+/* ─────────────────────────────────────────────
+   CONFIGURACIÓN — subcomponentes externos
+   (definidos fuera para evitar re-mount en cada render)
+───────────────────────────────────────────── */
+const cfgInputStyle = { width: "100%", background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 13.5, color: T.text, outline: "none", transition: "border-color 0.15s" };
+const cfgLabelStyle = { fontSize: 12, color: T.muted, marginBottom: 5, display: "block", fontWeight: 500 };
 
-  const [pwForm,   setPwForm]   = useState({ current: "", next: "", confirm: "" });
-  const [pwSaving, setPwSaving] = useState(false);
-  const [pwMsg,    setPwMsg]    = useState(null);
-  const [showPw,   setShowPw]   = useState({ current: false, next: false, confirm: false });
-  const [loggingOut, setLoggingOut] = useState(false);
+function SectionCard({ icon, title, children }) {
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <i className={`ti ${icon}`} style={{ fontSize: 18, color: T.green }} />
+        <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>{title}</span>
+      </div>
+      <div style={{ padding: 20 }}>{children}</div>
+    </div>
+  );
+}
+
+function PwInput({ label, value, onChange, show, onToggleShow }) {
+  return (
+    <div>
+      <label style={cfgLabelStyle}>{label}</label>
+      <div style={{ position: "relative" }}>
+        <input
+          className="gtx-config-input"
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          style={{ ...cfgInputStyle, paddingRight: 40 }}
+          placeholder="••••••••"
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.muted, fontSize: 16, display: "flex", alignItems: "center" }}
+        >
+          <i className={`ti ${show ? "ti-eye-off" : "ti-eye"}`} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Configuracion({ user, onLogout }) {
+  const [bizForm,       setBizForm]       = useState({ businessName: user?.businessName || "", email: user?.email || "", phone: "" });
+  const [loadingProfile,setLoadingProfile] = useState(true);
+  const [bizSaving,     setBizSaving]     = useState(false);
+  const [bizMsg,        setBizMsg]        = useState(null);
+
+  const [pwForm,    setPwForm]    = useState({ current: "", next: "", confirm: "" });
+  const [pwSaving,  setPwSaving]  = useState(false);
+  const [pwMsg,     setPwMsg]     = useState(null);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNext,    setShowNext]    = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loggingOut,  setLoggingOut]  = useState(false);
+
+  // El JWT no guarda phone → cargamos datos frescos de la BD
+  useEffect(() => {
+    apiFetch("/api/auth/me")
+      .then(data => {
+        if (data?.user) {
+          setBizForm({
+            businessName: data.user.businessName || "",
+            email:        data.user.email        || "",
+            phone:        data.user.phone        || "",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProfile(false));
+  }, []);
 
   const setBiz = k => e => setBizForm(f => ({ ...f, [k]: e.target.value }));
   const setPw  = k => e => setPwForm(f  => ({ ...f, [k]: e.target.value }));
-
-  const inputStyle = { width: "100%", background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", fontSize: 13.5, color: T.text, outline: "none", transition: "border-color 0.15s" };
-  const labelStyle = { fontSize: 12, color: T.muted, marginBottom: 5, display: "block", fontWeight: 500 };
 
   const saveBiz = async () => {
     setBizSaving(true); setBizMsg(null);
@@ -826,44 +886,30 @@ function Configuracion({ user, onLogout }) {
     onLogout();
   };
 
-  const SectionCard = ({ icon, title, children }) => (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
-        <i className={`ti ${icon}`} style={{ fontSize: 18, color: T.green }} />
-        <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>{title}</span>
-      </div>
-      <div style={{ padding: 20 }}>{children}</div>
-    </div>
-  );
 
-  const PwInput = ({ label, k }) => (
-    <div>
-      <label style={labelStyle}>{label}</label>
-      <div style={{ position: "relative" }}>
-        <input className="gtx-config-input" type={showPw[k] ? "text" : "password"} value={pwForm[k]} onChange={setPw(k)} style={{ ...inputStyle, paddingRight: 40 }} placeholder="••••••••" />
-        <button onClick={() => setShowPw(s => ({ ...s, [k]: !s[k] }))} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.muted, fontSize: 16 }}>
-          <i className={`ti ${showPw[k] ? "ti-eye-off" : "ti-eye"}`} />
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="gtx-fade" style={{ padding: "20px 28px", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      {loadingProfile ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
+          <Spinner size={32} />
+        </div>
+      ) : (<>
+
       <SectionCard icon="ti-building-store" title="Datos del Negocio">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={labelStyle}>Nombre del Negocio</label>
-            <input className="gtx-config-input" style={inputStyle} value={bizForm.businessName} onChange={setBiz("businessName")} />
+            <label style={cfgLabelStyle}>Nombre del Negocio</label>
+            <input className="gtx-config-input" style={cfgInputStyle} value={bizForm.businessName} onChange={setBiz("businessName")} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
-              <label style={labelStyle}>Email (solo lectura)</label>
-              <input style={{ ...inputStyle, opacity: 0.5 }} value={bizForm.email} readOnly />
+              <label style={cfgLabelStyle}>Email (solo lectura)</label>
+              <input style={{ ...cfgInputStyle, opacity: 0.5 }} value={bizForm.email} readOnly />
             </div>
             <div>
-              <label style={labelStyle}>Teléfono</label>
-              <input className="gtx-config-input" type="tel" style={inputStyle} value={bizForm.phone} onChange={setBiz("phone")} />
+              <label style={cfgLabelStyle}>Teléfono</label>
+              <input className="gtx-config-input" type="tel" style={cfgInputStyle} value={bizForm.phone} onChange={setBiz("phone")} />
             </div>
           </div>
           <Feedback msg={bizMsg} />
@@ -878,10 +924,28 @@ function Configuracion({ user, onLogout }) {
 
       <SectionCard icon="ti-lock" title="Cambiar Contraseña">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <PwInput label="Contraseña actual" k="current" />
+          <PwInput
+            label="Contraseña actual"
+            value={pwForm.current}
+            onChange={setPw("current")}
+            show={showCurrent}
+            onToggleShow={() => setShowCurrent(s => !s)}
+          />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <PwInput label="Nueva contraseña" k="next" />
-            <PwInput label="Confirmar nueva contraseña" k="confirm" />
+            <PwInput
+              label="Nueva contraseña"
+              value={pwForm.next}
+              onChange={setPw("next")}
+              show={showNext}
+              onToggleShow={() => setShowNext(s => !s)}
+            />
+            <PwInput
+              label="Confirmar nueva contraseña"
+              value={pwForm.confirm}
+              onChange={setPw("confirm")}
+              show={showConfirm}
+              onToggleShow={() => setShowConfirm(s => !s)}
+            />
           </div>
           {pwForm.next && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -916,6 +980,8 @@ function Configuracion({ user, onLogout }) {
           </button>
         </div>
       </SectionCard>
+
+      </>)}
     </div>
   );
 }

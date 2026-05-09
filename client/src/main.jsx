@@ -10,11 +10,10 @@ function Root() {
 
   // Al montar, verificar si ya hay una sesión activa (cookie)
   useEffect(() => {
+    // Usamos fetch nativo (no apiFetch) para no lanzar error en 401
     fetch("/api/auth/me", { credentials: "include" })
       .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.user) setUser(data.user);
-      })
+      .then(data => { if (data?.user) setUser(data.user); })
       .catch(() => {})
       .finally(() => setChecking(false));
   }, []);
