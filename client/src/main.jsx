@@ -2,7 +2,7 @@
 import { StrictMode, useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import AuthPage from "./AuthPage.jsx";
-import App from "./garantix.jsx";
+import App from "./App.jsx";
 
 function Root() {
   const [user, setUser] = useState(null);       // null = no autenticado

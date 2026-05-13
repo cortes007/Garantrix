@@ -1,121 +1,55 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// App.jsx — Punto de entrada principal de la app
+// Orquesta la navegación entre páginas e inyecta el CSS global.
 
-function App() {
-  const [count, setCount] = useState(0)
+import { useState } from "react";
+import { T, GLOBAL_CSS } from "./styles/tokens.js";
+import { Sidebar, TopBar } from "./components/ui.jsx";
+
+// Páginas
+import Dashboard      from "./pages/Dashboard.jsx";
+import NuevaGarantia  from "./pages/NuevaGarantia.jsx";
+import ValidarQR      from "./pages/ValidarQR.jsx";
+import Clientes       from "./pages/Clientes.jsx";
+import Configuracion  from "./pages/Configuracion.jsx";
+
+export default function App({ user, onLogout }) {
+  const [page, setPage] = useState("dashboard");
+
+  const businessName = user?.businessName || "Mi Negocio";
+
+  // Botón de acción en el TopBar según la página activa
+  const pageActions = {
+    dashboard: (
+      <button onClick={() => setPage("nueva")} style={{ display: "flex", alignItems: "center", gap: 7, background: T.green, color: T.navy, border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <i className="ti ti-plus" style={{ fontSize: 14 }} /> Crear Nueva Garantía
+      </button>
+    ),
+    clientes: (
+      <button onClick={() => setPage("nueva")} style={{ display: "flex", alignItems: "center", gap: 7, background: T.green, color: T.navy, border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <i className="ti ti-plus" style={{ fontSize: 14 }} /> Crear Nueva Garantía
+      </button>
+    ),
+  };
+
+  // Mapa de páginas
+  const pages = {
+    dashboard: <Dashboard     setPage={setPage} />,
+    nueva:     <NuevaGarantia setPage={setPage} />,
+    validar:   <ValidarQR />,
+    clientes:  <Clientes      setPage={setPage} />,
+    config:    <Configuracion user={user} onLogout={onLogout} />,
+  };
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+      <style>{GLOBAL_CSS}</style>
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+        <Sidebar active={page} setPage={setPage} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <TopBar title={businessName} action={pageActions[page]} />
+          {pages[page]}
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      </div>
     </>
-  )
+  );
 }
-
-export default App
