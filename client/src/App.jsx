@@ -6,16 +6,51 @@ import { T, GLOBAL_CSS } from "./styles/tokens.js";
 import { Sidebar, TopBar } from "./components/ui.jsx";
 
 // Páginas
-import Dashboard      from "./pages/Dashboard.jsx";
-import NuevaGarantia  from "./pages/NuevaGarantia.jsx";
-import ValidarQR      from "./pages/ValidarQR.jsx";
-import Clientes       from "./pages/Clientes.jsx";
-import Configuracion  from "./pages/Configuracion.jsx";
+import Dashboard       from "./pages/Dashboard.jsx";
+import NuevaGarantia   from "./pages/NuevaGarantia.jsx";
+import ValidarQR       from "./pages/ValidarQR.jsx";
+import Clientes        from "./pages/Clientes.jsx";
+import Configuracion   from "./pages/Configuracion.jsx";
+import GarantiaPublica from "./pages/GarantiaPublica.jsx";
 
 export default function App({ user, onLogout }) {
-  const [page, setPage] = useState("dashboard");
+  const [page,         setPage]         = useState("dashboard"); // página activa
+  const [warrantyCode, setWarrantyCode] = useState(null);
 
   const businessName = user?.businessName || "Mi Negocio";
+
+  // Función para navegar a la vista de garantía — úsala en cualquier botón
+  const verGarantia = (code) => {
+    setWarrantyCode(code);
+    setPage("garantia");
+  };
+
+  // Si estamos viendo una garantía, mostrar página completa sin sidebar ni topbar
+  if (page === "garantia" && warrantyCode) {
+    return (
+      <>
+        <style>{GLOBAL_CSS}</style>
+        {/* Botón volver flotante */}
+        <button
+          onClick={() => { setPage("clientes"); setWarrantyCode(null); }}
+          style={{
+            position: "fixed", top: 20, left: 20, zIndex: 100,
+            display: "flex", alignItems: "center", gap: 8,
+            background: "rgba(15,30,56,0.9)", backdropFilter: "blur(8px)",
+            color: T.text, border: `1px solid ${T.border}`,
+            borderRadius: 8, padding: "8px 16px",
+            fontSize: 13, fontWeight: 500, cursor: "pointer",
+          }}
+        >
+          <i className="ti ti-arrow-left" style={{ fontSize: 15 }} />
+          Volver al panel
+        </button>
+        <div style={{ height: "100vh", overflowY: "auto" }}>
+          <GarantiaPublica warrantyCode={warrantyCode} />
+        </div>
+      </>
+    );
+  }
 
   // Botón de acción en el TopBar según la página activa
   const pageActions = {
@@ -33,10 +68,10 @@ export default function App({ user, onLogout }) {
 
   // Mapa de páginas
   const pages = {
-    dashboard: <Dashboard     setPage={setPage} />,
-    nueva:     <NuevaGarantia setPage={setPage} />,
-    validar:   <ValidarQR />,
-    clientes:  <Clientes      setPage={setPage} />,
+    dashboard: <Dashboard     setPage={setPage} verGarantia={verGarantia} />,
+    nueva:     <NuevaGarantia setPage={setPage} verGarantia={verGarantia} />,
+    validar:   <ValidarQR     verGarantia={verGarantia} />,
+    clientes:  <Clientes      setPage={setPage} verGarantia={verGarantia} />,
     config:    <Configuracion user={user} onLogout={onLogout} />,
   };
 

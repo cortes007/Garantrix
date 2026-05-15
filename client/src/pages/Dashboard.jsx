@@ -23,7 +23,7 @@ export default function Dashboard({ setPage }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
             { label: "Garantías Activas",        value: loading ? "…" : stats?.warranties?.active ?? 0, icon: "ti-shield-check",   accent: true  },
-            { label: "Reclamaciones Pendientes",  value: loading ? "…" : stats?.claims?.pending   ?? 0, icon: "ti-alert-triangle", accent: false },
+            { label: "Reclamaciones",  value: loading ? "…" : stats?.claims?.pending   ?? 0, icon: "ti-alert-triangle", accent: false },
           ].map(({ label, value, icon, accent }) => (
             <div key={label} style={{
               background: accent ? T.blueSoft : T.card,
@@ -84,7 +84,7 @@ export default function Dashboard({ setPage }) {
           ) : [
             { label: "Total garantías",  val: stats?.warranties?.total   ?? 0, color: T.text   },
             { label: "Vencidas",         val: stats?.warranties?.expired ?? 0, color: T.red    },
-            { label: "En reclamación",   val: stats?.warranties?.inClaim ?? 0, color: T.yellow },
+            { label: "Reclamadas",   val: stats?.warranties?.inClaim ?? 0, color: T.yellow },
             { label: "Total clientes",   val: stats?.clients?.total      ?? 0, color: T.green  },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>

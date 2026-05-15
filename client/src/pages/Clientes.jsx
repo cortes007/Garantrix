@@ -4,7 +4,7 @@ import { T } from "../styles/tokens.js";
 import { apiFetch, fmt } from "../scripts/api.js";
 import { Spinner, Badge, EmptyState, Feedback, QRPanel } from "../components/ui.jsx";
 
-export default function Clientes({ setPage }) {
+export default function Clientes({ setPage, verGarantia }) {
   const [clients,  setClients]  = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [search,   setSearch]   = useState("");
@@ -97,6 +97,25 @@ export default function Clientes({ setPage }) {
                           <div style={{ position: "absolute", right: 0, top: "calc(100% - 4px)", background: "#162340", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, zIndex: 10, minWidth: 170, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
                             <button onClick={() => { setPage("nueva"); setOpenMenu(null); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
                               <i className="ti ti-shield-plus" style={{ fontSize: 15, color: T.muted }} /> Nueva Garantía
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const data = await apiFetch(`/api/warranties?clientId=${c._id}`);
+                                  const ultima = data.warranties?.[0];
+                                  if (ultima) {
+                                    verGarantia(ultima.warrantyCode);
+                                  } else {
+                                    alert("Este cliente no tiene garantías registradas");
+                                  }
+                                } catch {
+                                  alert("Error al buscar garantías");
+                                }
+                              }}
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}
+                            >
+                              <i className="ti ti-eye" style={{ fontSize: 15, color: T.muted }} />
+                              Ver Garantía Completa
                             </button>
                             <div style={{ borderTop: `1px solid ${T.border}`, margin: "3px 0" }} />
                             <button onClick={() => handleDelete(c._id)} disabled={deleting === c._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.red, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>

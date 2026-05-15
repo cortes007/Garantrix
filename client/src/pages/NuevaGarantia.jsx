@@ -126,8 +126,9 @@ export default function NuevaGarantia({ setPage }) {
               <div style={{ fontFamily: "Syne", fontSize: 13, fontWeight: 600, color: T.green }}>🎉 Garantía generada</div>
               <div style={{ fontSize: 12, color: T.muted }}>
                 <strong style={{ color: T.text }}>Código:</strong> {created.warrantyCode}<br />
-                <strong style={{ color: T.text }}>QR URL:</strong>{" "}
-                <a href={created.qrData} target="_blank" rel="noreferrer" style={{ color: T.green }}>{created.qrData}</a>
+                <strong style={{ color: T.text }}>Cliente:</strong> {created.clientId?.name} ({created.clientId?.email})<br />
+                <strong style={{ color: T.text }}>Producto:</strong> {created.product}<br />
+                <strong style={{ color: T.text }}>Válida desde:</strong> {new Date(created.startDate).toLocaleDateString()} hasta {new Date(created.endDate).toLocaleDateString()}
               </div>
             </div>
           )}
