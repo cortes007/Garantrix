@@ -84,7 +84,7 @@ export default function Configuracion({ user, onLogout }) {
   const strengthColor = strengthLevel === 1 ? T.red : strengthLevel === 2 ? T.yellow : strengthLevel === 3 ? "#7EE8A2" : T.green;
 
   return (
-    <div className="gtx-fade" style={{ padding: "20px 28px", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="gtx-fade" style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 20, paddingBottom: 40 }}>
       {loadingProfile ? (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
           <Spinner size={32} />

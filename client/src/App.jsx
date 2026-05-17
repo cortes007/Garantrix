@@ -80,9 +80,11 @@ export default function App({ user, onLogout }) {
       <style>{GLOBAL_CSS}</style>
       <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         <Sidebar active={page} setPage={setPage} />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
           <TopBar title={businessName} action={pageActions[page]} />
-          {pages[page]}
+          <div style={{ flex: 1, position: "relative", overflow: "auto" }}>
+            {pages[page]}
+          </div>
         </div>
       </div>
     </>

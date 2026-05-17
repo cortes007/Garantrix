@@ -28,7 +28,7 @@ const GLOBAL_CSS = `
     background: ${T.navy};
     color: ${T.text};
     min-height: 100vh;
-    overflow: hidden;
+    overflow: auto;
   }
 
   input, button { font-family: 'DM Sans', sans-serif; }
