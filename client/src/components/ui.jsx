@@ -88,11 +88,12 @@ export function EmptyState({ icon, title, sub }) {
 /* ── Sidebar ─────────────────────────────── */
 export function Sidebar({ active, setPage }) {
   const items = [
-    { key: "nueva",     icon: "ti-plus",             label: "Nueva Garantía", special: true },
-    { key: "dashboard", icon: "ti-layout-dashboard", label: "Dashboard" },
-    { key: "validar",   icon: "ti-qrcode",           label: "Validar QR" },
-    { key: "clientes",  icon: "ti-users",            label: "Clientes" },
-    { key: "config",    icon: "ti-settings",         label: "Configuración" },
+    { key: "nueva",         icon: "ti-plus",             label: "Nueva Garantía",       special: true },
+    { key: "dashboard",     icon: "ti-layout-dashboard", label: "Dashboard" },
+    { key: "validar",       icon: "ti-qrcode",           label: "Validar QR" },
+    { key: "clientes",      icon: "ti-users",            label: "Clientes" },
+    { key: "config",        icon: "ti-settings",         label: "Configuración" },
+    { key: "reclamaciones", icon: "ti-clipboard-list",   label: "Garantías Reclamadas" },
   ];
   return (
     <aside style={{
@@ -106,17 +107,20 @@ export function Sidebar({ active, setPage }) {
       <nav style={{ padding: "16px 12px", flex: 1 }}>
         {items.map(({ key, icon, label, special }) => {
           const isActive = active === key;
+          const isReclamaciones = key === "reclamaciones";
           return (
             <button key={key} onClick={() => setPage(key)} style={{
               display: "flex", alignItems: "center", gap: 10,
               padding: "9px 12px", borderRadius: 8,
               fontSize: 13.5,
               fontWeight: special || isActive ? 600 : 400,
-              color:      special ? T.navy : isActive ? T.green : T.muted,
-              background: special ? T.green : isActive ? T.greenSoft : "none",
-              border: "none", width: "100%", textAlign: "left",
+              color:      special ? T.navy : isActive ? T.green : isReclamaciones ? T.yellow : T.muted,
+              background: special ? T.green : isActive ? T.greenSoft : isReclamaciones && !isActive ? "rgba(255,180,0,0.06)" : "none",
+              border: isReclamaciones && !isActive ? "1px solid rgba(255,180,0,0.15)" : "none",
+              width: "100%", textAlign: "left",
               cursor: "pointer",
-              marginBottom: special ? 16 : 2,
+              marginBottom: special ? 16 : key === "config" ? 2 : 2,
+              marginTop: isReclamaciones ? 8 : 0,
               transition: "all 0.15s",
             }}>
               <i className={`ti ${icon}`} style={{ fontSize: 16 }} />
