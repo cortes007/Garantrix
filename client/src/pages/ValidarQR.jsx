@@ -1,14 +1,14 @@
-// pages/ValidarQR.jsx
 import { useState } from "react";
 import { T } from "../styles/tokens.js";
 import { apiFetch, fmt } from "../scripts/api.js";
 import { Spinner, Badge, QRPanel } from "../components/ui.jsx";
+import QRScanner from "../components/QRScanner.jsx"; // IMPORTAMOS EL NUEVO ESCÁNER
 
 export default function ValidarQR() {
   const [cameraOn, setCameraOn] = useState(false);
-  const [code,     setCode]     = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [result,   setResult]   = useState(null);
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
   const validate = async (searchCode) => {
     const c = (searchCode || code).trim();
@@ -22,6 +22,13 @@ export default function ValidarQR() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Esta función es llamada automáticamente por el QRScanner cuando detecta un código
+  const handleQRLeido = (codigoDecodificado) => {
+    setCameraOn(false); // Apagamos la cámara
+    setCode(codigoDecodificado); // Ponemos el código en el input
+    validate(codigoDecodificado); // Disparamos la validación de inmediato
   };
 
   const resultBorder = result === null ? T.border : result.ok ? "rgba(0,214,143,0.3)" : "rgba(255,107,107,0.3)";
@@ -48,18 +55,46 @@ export default function ValidarQR() {
                 Escanear Código QR
               </div>
               <div style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${cameraOn ? "rgba(0,214,143,0.5)" : T.border}`, borderRadius: 10, aspectRatio: "4/3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, position: "relative", overflow: "hidden" }}>
-                {cameraOn && (
-                  <div style={{ position: "absolute", left: "10%", right: "10%", height: 2, background: `linear-gradient(90deg, transparent, ${T.green}, transparent)`, animation: "scanMove 2s ease-in-out infinite" }} />
+                
+                {/* --- AQUI REEMPLAZAMOS CON EL NUEVO SCANNER --- */}
+                {cameraOn ? (
+                  <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
+                    <QRScanner onScanSuccess={handleQRLeido} />
+                  </div>
+                ) : (
+                  <>
+                    {corners.map(([k, bw, br]) => (
+                      <div key={k} style={{ position: "absolute", width: 18, height: 18, borderColor: T.green, borderStyle: "solid", borderWidth: bw, borderRadius: br, opacity: 0.7, ...(k==="tl"?{top:10,left:10}:k==="tr"?{top:10,right:10}:k==="bl"?{bottom:10,left:10}:{bottom:10,right:10}) }} />
+                    ))}
+                    <i className="ti ti-camera" style={{ fontSize: 36, color: T.muted, opacity: 0.4 }} />
+                    <span style={{ fontSize: 12, color: T.muted }}>
+                      Apunta la cámara al código QR
+                    </span>
+                  </>
                 )}
-                {corners.map(([k, bw, br]) => (
-                  <div key={k} style={{ position: "absolute", width: 18, height: 18, borderColor: T.green, borderStyle: "solid", borderWidth: bw, borderRadius: br, opacity: 0.7, ...(k==="tl"?{top:10,left:10}:k==="tr"?{top:10,right:10}:k==="bl"?{bottom:10,left:10}:{bottom:10,right:10}) }} />
-                ))}
-                {!cameraOn && <i className="ti ti-camera" style={{ fontSize: 36, color: T.muted, opacity: 0.4 }} />}
-                <span style={{ fontSize: 12, color: cameraOn ? T.green : T.muted }}>
-                  {cameraOn ? "Escaneando..." : "Apunta la cámara al código QR"}
-                </span>
-                <button onClick={() => setCameraOn(c => !c)} style={{ marginTop: 4, padding: "8px 16px", background: T.greenSoft, color: T.green, border: `1px solid rgba(0,214,143,0.3)`, borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-                  <i className="ti ti-camera" style={{ fontSize: 14 }} />
+                {/* ----------------------------------------------- */}
+
+                <button 
+                  onClick={() => setCameraOn(c => !c)} 
+                  style={{ 
+                    position: cameraOn ? 'absolute' : 'relative', // Si está encendida, el botón flota encima
+                    bottom: cameraOn ? 10 : 0, 
+                    zIndex: 10,
+                    marginTop: cameraOn ? 0 : 4, 
+                    padding: "8px 16px", 
+                    background: cameraOn ? "rgba(0,0,0,0.7)" : T.greenSoft, 
+                    color: T.green, 
+                    border: `1px solid rgba(0,214,143,0.3)`, 
+                    borderRadius: 7, 
+                    fontSize: 12, 
+                    fontWeight: 500, 
+                    cursor: "pointer", 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: 6 
+                  }}
+                >
+                  <i className={cameraOn ? "ti ti-camera-off" : "ti ti-camera"} style={{ fontSize: 14 }} />
                   {cameraOn ? "Detener Cámara" : "Activar Cámara"}
                 </button>
               </div>

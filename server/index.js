@@ -1,4 +1,3 @@
-// server/index.js
 import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
@@ -6,6 +5,10 @@ import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+
+// 🔥 1. NUEVAS IMPORTACIONES PARA EL QR Y N8N
+import QRCode from "qrcode";
+import axios from "axios";
  
 dotenv.config();
  
@@ -77,6 +80,8 @@ const warrantySchema = new mongoose.Schema(
       default: "ACTIVA",
     },
     qrData: { type: String },
+    // 🔥 2. NUEVO CAMPO: Guardaremos la imagen del QR en Base64 en MongoDB
+    qrBase64: { type: String }, 
   },
   { timestamps: true }
 );
@@ -85,7 +90,20 @@ warrantySchema.pre("save", async function (next) {
   if (!this.warrantyCode) {
     const count = await Warranty.countDocuments();
     this.warrantyCode = `#GTX-${String(9900 + count + 1).padStart(4, "0")}`;
-    this.qrData = `${process.env.CLIENT_URL || "http://localhost:5173"}/warranty/${this.warrantyCode}`;
+    
+    // El frontend espera leer el código exacto (ej. #GTX-9901) para validar
+    this.qrData = this.warrantyCode;
+    
+    // 🔥 3. NUEVO: Dibuja automáticamente el QR antes de guardar en la BD
+    try {
+      this.qrBase64 = await QRCode.toDataURL(this.warrantyCode, {
+        width: 300,
+        margin: 2,
+        color: { dark: '#000000', light: '#FFFFFF' }
+      });
+    } catch (err) {
+      console.error("Error generando QR Base64 internamente:", err);
+    }
   }
   next();
 });
@@ -425,7 +443,29 @@ app.post("/api/warranties", requireAuth, async (req, res) => {
       invoiceNumber, purchaseDate, startDate, endDate,
     });
  
-    const populated = await warranty.populate("clientId", "name email phone");
+ const populated = await warranty.populate("clientId", "name email phone");
+
+    // 🔥 Enviamos el Webhook a n8n después de crear la garantía
+    try {
+      // Usamos la URL de producción (sin el -test) ya que publicaste el flujo
+      const N8N_URL = "https://mervin-interterminal-eileen.ngrok-free.dev/webhook/garantix"; 
+      
+      // Validamos que el cliente realmente exista en la BD antes de leer sus propiedades
+      if (populated.clientId) {
+        await axios.post(N8N_URL, {
+          clientName: populated.clientId.name,
+          email: populated.clientId.email,
+          warrantyCode: populated.warrantyCode,
+          qrBase64: populated.qrBase64
+        });
+        console.log("✅ Webhook enviado a n8n con éxito para la garantía:", populated.warrantyCode);
+      } else {
+        console.warn("⚠️ Webhook no enviado: El clientId de esta garantía no existe en la colección de clientes.");
+      }
+    } catch (webhookErr) {
+      console.error("⚠️ No se pudo conectar con n8n:", webhookErr.message);
+    }
+ 
     res.status(201).json({ warranty: populated });
   } catch (err) {
     console.error(err);
