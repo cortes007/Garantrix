@@ -1,0 +1,98 @@
+{
+  "name": "Garantix warranties",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "garantix",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        288,
+        -32
+      ],
+      "id": "0ddc58a6-aa1e-47aa-a885-80c1ca220091",
+      "webhookId": "5cb9f015-a5fe-4c5a-90ad-932e52920b81"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.all()[0];\n// Extraemos el Base64 limpio\nconst base64Data = item.json.body.qrBase64.split(',').pop();\n\n// Lo convertimos en archivo adjunto\nitem.binary = {\n  attachment: {\n    data: base64Data,\n    mimeType: 'image/png',\n    fileName: 'qr_garantia.png'\n  }\n};\nreturn item;"
+      },
+      "name": "Generar Imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -32
+      ],
+      "id": "328a9db6-29b8-4348-9bef-f1781a0d8611"
+    },
+    {
+      "parameters": {
+        "fromEmail": "fkacc124@gmail.com",
+        "toEmail": "={{ $json.body.email }}",
+        "subject": "Tu garantía está activa - Garantix",
+        "emailFormat": "text",
+        "text": "=Hola {{ $json.body.clientName }},\n\nTu garantía con el código {{ $json.body.warrantyCode }} ha sido registrada exitosamente en nuestro sistema.\n\nAdjuntamos tu código QR oficial. Por favor guárdalo para futuras validaciones.\n\nSaludos,\nEl equipo de Garantix",
+        "options": {
+          "attachments": "attachment"
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        -32
+      ],
+      "id": "cd03cfa5-660c-4941-93bd-40ae2d88051b",
+      "name": "Send an Email",
+      "webhookId": "6895c627-43b2-40fa-816d-1243f9c440b0",
+      "credentials": {
+        "smtp": {
+          "id": "TaCyfvu8VaIHkpeK",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Generar Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c785e2f9-521c-4036-85f3-0e3c3fa62223",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4e74fda439f49b89b17ae58761bcfbfc6b3d272964bd3b116c25ca3c3727f6e3"
+  },
+  "id": "Q0NGJXkqlTH2IwxP",
+  "tags": []
+}

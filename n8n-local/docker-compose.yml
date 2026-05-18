@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n_local
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_ENCRYPTION_KEY=una_clave_secreta_cualquiera_123
+      - TZ=America/Bogota # Ajusta a tu zona horaria para los nodos de tiempo
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    restart: unless-stopped
+
+volumes:
+  n8n_storage:

@@ -1,4 +1,4 @@
-# Garantrix - Proyecto Fullstack
+# Garantix - Proyecto Fullstack
 Este es el proyecto final para la asignatura de **Emprendimiento**. Es una solución Fullstack que utiliza **React (Vite)** para el frontend y **Node.js (Express)** para el backend.
 
 ---
