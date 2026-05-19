@@ -1,321 +1,258 @@
-// pages/Clientes.jsx
+// pages/Reclamaciones.jsx
 import { useState, useEffect, useCallback } from "react";
 import { T } from "../styles/tokens.js";
 import { apiFetch, fmt } from "../scripts/api.js";
-import { Spinner, Badge, EmptyState, Feedback, QRPanel } from "../components/ui.jsx";
+import { Spinner, Badge, EmptyState, Feedback } from "../components/ui.jsx";
 
-export default function Clientes({ setPage, verGarantia }) {
-  const [clients,  setClients]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState("");
-  const [openMenu, setOpenMenu] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [msg,      setMsg]      = useState(null);
+const STATUS_OPTS = ["PENDIENTE", "EN_PROCESO", "RESUELTA"];
 
-  // Modal de reclamación
-  const [claimModal,   setClaimModal]   = useState(null); // { clientId, warranties[] }
-  const [claimWarranty, setClaimWarranty] = useState("");
-  const [claimDesc,    setClaimDesc]    = useState("");
-  const [claimLoading, setClaimLoading] = useState(false);
-  const [claimMsg,     setClaimMsg]     = useState(null);
+export default function Reclamaciones() {
+  const [claims,    setClaims]    = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [filter,    setFilter]    = useState("all");
+  const [selected,  setSelected]  = useState(null); // claim abierto en detalle
+  const [updating,  setUpdating]  = useState(false);
+  const [notes,     setNotes]     = useState("");
+  const [newStatus, setNewStatus] = useState("");
+  const [msg,       setMsg]       = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch(`/api/clients?search=${encodeURIComponent(search)}`);
-      setClients(data.clients || []);
+      const params = filter !== "all" ? `?status=${filter}` : "";
+      const data = await apiFetch(`/api/claims${params}`);
+      setClaims(data.claims || []);
     } catch {
-      setMsg({ type: "err", text: "Error al cargar clientes" });
+      setMsg({ type: "err", text: "Error al cargar reclamaciones" });
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [filter]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("¿Eliminar este cliente?")) return;
-    setDeleting(id);
-    try {
-      await apiFetch(`/api/clients/${id}`, { method: "DELETE" });
-      setClients(prev => prev.filter(c => c._id !== id));
-    } catch (err) {
-      setMsg({ type: "err", text: err.message });
-    } finally {
-      setDeleting(null);
-      setOpenMenu(null);
-    }
+  const openDetail = (claim) => {
+    setSelected(claim);
+    setNotes(claim.notes || "");
+    setNewStatus(claim.status);
+    setMsg(null);
   };
 
-  // Abrir modal de reclamar garantía
-  const handleOpenClaim = async (client) => {
-    setOpenMenu(null);
-    setClaimMsg(null);
-    setClaimDesc("");
-    setClaimWarranty("");
+  const handleUpdate = async () => {
+    if (!selected) return;
+    setUpdating(true);
     try {
-      const data = await apiFetch(`/api/warranties?clientId=${client._id}`);
-      const activas = (data.warranties || []).filter(w => w.status === "ACTIVA");
-      if (activas.length === 0) {
-        setMsg({ type: "err", text: `${client.name} no tiene garantías activas para reclamar` });
-        return;
-      }
-      setClaimModal({ client, warranties: activas });
-      setClaimWarranty(activas[0]._id);
-    } catch {
-      setMsg({ type: "err", text: "Error al cargar garantías del cliente" });
-    }
-  };
-
-  const handleSubmitClaim = async () => {
-    if (!claimWarranty || !claimDesc.trim()) {
-      setClaimMsg({ type: "err", text: "Selecciona una garantía y describe el problema" });
-      return;
-    }
-    setClaimLoading(true);
-    try {
-      await apiFetch("/api/claims", {
-        method: "POST",
+      const data = await apiFetch(`/api/claims/${selected._id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ warrantyId: claimWarranty, description: claimDesc.trim() }),
+        body: JSON.stringify({ status: newStatus, notes }),
       });
-      setClaimMsg({ type: "ok", text: "¡Reclamación registrada exitosamente!" });
-      setTimeout(() => {
-        setClaimModal(null);
-        setMsg({ type: "ok", text: "Reclamación creada. Puedes verla en Garantías Reclamadas." });
-      }, 1500);
+      setMsg({ type: "ok", text: "Reclamación actualizada correctamente" });
+      setClaims(prev => prev.map(c => c._id === selected._id ? { ...c, status: newStatus, notes } : c));
+      setSelected(prev => ({ ...prev, status: newStatus, notes }));
     } catch (err) {
-      setClaimMsg({ type: "err", text: err.message || "Error al crear reclamación" });
+      setMsg({ type: "err", text: err.message || "Error al actualizar" });
     } finally {
-      setClaimLoading(false);
+      setUpdating(false);
     }
   };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("¿Eliminar esta reclamación?")) return;
+    try {
+      await apiFetch(`/api/claims/${id}`, { method: "DELETE" });
+      setClaims(prev => prev.filter(c => c._id !== id));
+      if (selected?._id === id) setSelected(null);
+      setMsg({ type: "ok", text: "Reclamación eliminada" });
+    } catch {
+      setMsg({ type: "err", text: "Error al eliminar reclamación" });
+    }
+  };
+
+  const statusColor = (s) => ({
+    PENDIENTE:  T.yellow,
+    EN_PROCESO: T.blue,
+    RESUELTA:   T.green,
+  }[s] || T.muted);
 
   return (
-    <>
-      {/* MODAL RECLAMAR GARANTÍA */}
-      {claimModal && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 1000,
-          background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }} onClick={() => setClaimModal(null)}>
-          <div
-            className="gtx-fade"
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: "#0f1e38", border: `1px solid ${T.border}`,
-              borderRadius: 16, padding: 28, width: 440, maxWidth: "90vw",
-              display: "flex", flexDirection: "column", gap: 16,
-            }}
-          >
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontFamily: "Syne", fontSize: 16, fontWeight: 700 }}>Reclamar Garantía</div>
-                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
-                  Cliente: <span style={{ color: T.text }}>{claimModal.client.name}</span>
+    <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: selected ? "1fr 340px" : "1fr", gap: 20, flex: 1, overflow: "hidden" }}>
+
+      {/* COLUMNA PRINCIPAL */}
+      <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {msg && !selected && <div style={{ marginBottom: 10 }}><Feedback msg={msg} /></div>}
+
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden", flex: 1 }}>
+
+          {/* HEADER */}
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>Garantías Reclamadas</span>
+              <span style={{ background: "rgba(255,180,0,0.12)", color: T.yellow, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(255,180,0,0.2)" }}>
+                {claims.length} reclamación{claims.length !== 1 ? "es" : ""}
+              </span>
+            </div>
+            {/* FILTROS */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["all", "Todas"], ["PENDIENTE", "Pendientes"], ["EN_PROCESO", "En proceso"], ["RESUELTA", "Resueltas"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setFilter(val)} style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                  border: `1px solid ${filter === val ? T.yellow : T.border}`,
+                  background: filter === val ? "rgba(255,180,0,0.1)" : "none",
+                  color: filter === val ? T.yellow : T.muted, cursor: "pointer",
+                }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* TABLA */}
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {loading ? (
+              <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><Spinner size={28} /></div>
+            ) : claims.length === 0 ? (
+              <EmptyState icon="ti-clipboard-x" title="Sin reclamaciones" sub={filter !== "all" ? "No hay reclamaciones con este estado" : "Las reclamaciones aparecen al reclamar una garantía"} />
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${T.border}`, background: "#0d1b30", position: "sticky", top: 0, zIndex: 1 }}>
+                    {["Garantía", "Cliente", "Producto", "Descripción", "Fecha", "Estado", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 16px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {claims.map(cl => (
+                    <tr
+                      key={cl._id}
+                      className="gtx-row"
+                      style={{ borderBottom: `1px solid ${T.border}`, cursor: "pointer", background: selected?._id === cl._id ? "rgba(255,180,0,0.04)" : "transparent" }}
+                      onClick={() => openDetail(cl)}
+                    >
+                      <td style={{ padding: "11px 16px", fontFamily: "Syne", fontSize: 12, color: T.green, fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {cl.warrantyId?.warrantyCode || "-"}
+                      </td>
+                      <td style={{ padding: "11px 16px", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>
+                        {cl.warrantyId?.clientId?.name || "-"}
+                      </td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted }}>
+                        {cl.warrantyId?.product || "-"}
+                      </td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, maxWidth: 200 }}>
+                        <span style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {cl.description}
+                        </span>
+                      </td>
+                      <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{fmt(cl.createdAt)}</td>
+                      <td style={{ padding: "11px 16px" }}><Badge status={cl.status} /></td>
+                      <td style={{ padding: "11px 16px", textAlign: "right" }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleDelete(cl._id); }}
+                          style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "4px 8px", color: T.red, cursor: "pointer", fontSize: 13 }}
+                        >
+                          <i className="ti ti-trash" style={{ fontSize: 13 }} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* PANEL DETALLE */}
+      {selected && (
+        <div className="gtx-fade" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ fontFamily: "Syne", fontSize: 14, fontWeight: 600 }}>Detalle de Reclamación</span>
+            <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+
+          <div style={{ padding: "16px 18px", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+            {msg && <Feedback msg={msg} />}
+
+            {/* INFO */}
+            <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { label: "Garantía",  val: selected.warrantyId?.warrantyCode, color: T.green },
+                { label: "Cliente",   val: selected.warrantyId?.clientId?.name },
+                { label: "Email",     val: selected.warrantyId?.clientId?.email },
+                { label: "Producto",  val: selected.warrantyId?.product },
+                { label: "Registrada", val: fmt(selected.createdAt) },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                  <span style={{ color: T.muted }}>{label}</span>
+                  <span style={{ color: color || T.text, fontWeight: 500, textAlign: "right", maxWidth: 180 }}>{val || "-"}</span>
                 </div>
+              ))}
+            </div>
+
+            {/* DESCRIPCIÓN */}
+            <div>
+              <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Descripción del problema</div>
+              <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: 12, fontSize: 13, lineHeight: 1.6, color: T.text }}>
+                {selected.description}
               </div>
-              <button onClick={() => setClaimModal(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
 
-            {claimMsg && <Feedback msg={claimMsg} />}
-
-            {/* Seleccionar garantía */}
+            {/* CAMBIAR ESTADO */}
             <div>
-              <label style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 6 }}>
-                Garantía a reclamar
-              </label>
-              <select
-                value={claimWarranty}
-                onChange={e => setClaimWarranty(e.target.value)}
-                style={{
-                  width: "100%", background: "rgba(0,0,0,0.3)", border: `1px solid ${T.border}`,
-                  borderRadius: 8, padding: "9px 12px", fontSize: 13, color: T.text,
-                  outline: "none", cursor: "pointer",
-                }}
-              >
-                {claimModal.warranties.map(w => (
-                  <option key={w._id} value={w._id} style={{ background: "#0f1e38" }}>
-                    {w.warrantyCode} — {w.product}
-                  </option>
+              <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Estado actual</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {STATUS_OPTS.map(s => (
+                  <button key={s} onClick={() => setNewStatus(s)} style={{
+                    flex: 1, padding: "7px 4px", borderRadius: 7, fontSize: 11, fontWeight: 600,
+                    border: `1px solid ${newStatus === s ? statusColor(s) : T.border}`,
+                    background: newStatus === s ? `${statusColor(s)}1a` : "none",
+                    color: newStatus === s ? statusColor(s) : T.muted, cursor: "pointer",
+                  }}>{s.replace("_", " ")}</button>
                 ))}
-              </select>
+              </div>
             </div>
 
-            {/* Descripción del problema */}
+            {/* NOTAS */}
             <div>
-              <label style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 6 }}>
-                Descripción del problema
-              </label>
+              <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Notas internas</div>
               <textarea
-                value={claimDesc}
-                onChange={e => setClaimDesc(e.target.value)}
-                placeholder="Describe el problema o defecto de la garantía..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Agregar notas sobre la gestión..."
                 rows={4}
                 style={{
-                  width: "100%", background: "rgba(0,0,0,0.25)", border: `1px solid ${T.border}`,
-                  borderRadius: 8, padding: "10px 12px", fontSize: 13, color: T.text,
-                  outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5,
+                  width: "100%", background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`,
+                  borderRadius: 8, padding: 10, fontSize: 13, color: T.text,
+                  resize: "vertical", outline: "none", fontFamily: "inherit", lineHeight: 1.5,
                 }}
               />
             </div>
 
-            {/* Botones */}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={() => setClaimModal(null)}
-                style={{
-                  flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13,
-                  border: `1px solid ${T.border}`, background: "none", color: T.muted, cursor: "pointer",
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSubmitClaim}
-                disabled={claimLoading}
-                style={{
-                  flex: 2, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
-                  background: T.yellow, color: "#000", border: "none",
-                  cursor: claimLoading ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  opacity: claimLoading ? 0.7 : 1,
-                }}
-              >
-                {claimLoading
-                  ? <Spinner size={14} />
-                  : <i className="ti ti-alert-triangle" style={{ fontSize: 15 }} />
-                }
-                Registrar Reclamación
-              </button>
-            </div>
+            {/* BOTÓN GUARDAR */}
+            <button
+              onClick={handleUpdate}
+              disabled={updating}
+              style={{
+                width: "100%", background: T.green, color: T.navy,
+                border: "none", borderRadius: 8, padding: "10px 0",
+                fontSize: 13, fontWeight: 700, cursor: updating ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                opacity: updating ? 0.7 : 1,
+              }}
+            >
+              {updating ? <Spinner size={14} /> : <i className="ti ti-device-floppy" style={{ fontSize: 15 }} />}
+              Guardar cambios
+            </button>
+
+            {/* RESOLUCIÓN */}
+            {selected.resolvedAt && (
+              <div style={{ fontSize: 12, color: T.green, textAlign: "center", opacity: 0.8 }}>
+                <i className="ti ti-circle-check" style={{ fontSize: 13, marginRight: 4 }} />
+                Resuelta el {fmt(selected.resolvedAt)}
+              </div>
+            )}
           </div>
         </div>
       )}
-
-      <div className="gtx-fade" style={{ padding: "20px 28px", display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, flex: 1, overflow: "hidden" }}>
-        <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {msg && <div style={{ marginBottom: 10 }}><Feedback msg={msg} /></div>}
-
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden", flex: 1 }}>
-            {/* HEADER */}
-            <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontFamily: "Syne", fontSize: 15, fontWeight: 600 }}>Directorio de Clientes</span>
-                <span style={{ background: T.greenSoft, color: T.green, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, border: `1px solid rgba(0,214,143,0.2)` }}>
-                  {clients.length} clientes
-                </span>
-              </div>
-              <div style={{ position: "relative" }}>
-                <i className="ti ti-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: T.muted, pointerEvents: "none" }} />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar cliente..."
-                  style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 12px 7px 32px", fontSize: 12.5, color: T.text, outline: "none", width: 200 }}
-                />
-              </div>
-            </div>
-
-            {/* TABLA */}
-            <div style={{ overflowY: "auto", flex: 1 }}>
-              {loading ? (
-                <div style={{ padding: 40, display: "flex", justifyContent: "center" }}><Spinner size={28} /></div>
-              ) : clients.length === 0 ? (
-                <EmptyState icon="ti-users-group" title="Sin clientes aún" sub={search ? "Ningún cliente coincide con la búsqueda" : "Los clientes se crean al registrar una garantía"} />
-              ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${T.border}`, background: "#0d1b30", position: "sticky", top: 0, zIndex: 1 }}>
-                      {["Nombre","Email","Teléfono","Registrado","Estado",""].map(h => (
-                        <th key={h} style={{ padding: "10px 16px", fontSize: 11, color: T.muted, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clients.map((c, idx) => (
-                      <tr key={c._id} className="gtx-row" style={{ borderBottom: `1px solid ${T.border}` }}>
-                        <td style={{ padding: "11px 16px", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>{c.name}</td>
-                        <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted }}>{c.email}</td>
-                        <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{c.phone || "-"}</td>
-                        <td style={{ padding: "11px 16px", fontSize: 12.5, color: T.muted, whiteSpace: "nowrap" }}>{fmt(c.createdAt)}</td>
-                        <td style={{ padding: "11px 16px" }}><Badge status={c.active ? "ACTIVO" : "INACTIVO"} /></td>
-                        <td style={{ padding: "11px 16px", textAlign: "right", position: "relative" }}>
-                          <button
-                            onClick={() => setOpenMenu(openMenu === idx ? null : idx)}
-                            style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "4px 8px", color: T.muted, cursor: "pointer", fontSize: 16, lineHeight: 1 }}
-                          >⋯</button>
-                          {openMenu === idx && (
-                            <div style={{ position: "absolute", right: 0, top: "calc(100% - 4px)", background: "#162340", border: `1px solid ${T.border}`, borderRadius: 8, padding: 4, zIndex: 10, minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-                              <button onClick={() => { setPage("nueva"); setOpenMenu(null); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
-                                <i className="ti ti-shield-plus" style={{ fontSize: 15, color: T.muted }} /> Nueva Garantía
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const data = await apiFetch(`/api/warranties?clientId=${c._id}`);
-                                    const ultima = data.warranties?.[0];
-                                    if (ultima) {
-                                      verGarantia(ultima.warrantyCode);
-                                    } else {
-                                      alert("Este cliente no tiene garantías registradas");
-                                    }
-                                  } catch {
-                                    alert("Error al buscar garantías");
-                                  }
-                                  setOpenMenu(null);
-                                }}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}
-                              >
-                                <i className="ti ti-eye" style={{ fontSize: 15, color: T.muted }} />
-                                Ver Garantía Completa
-                              </button>
-
-                              {/* ── NUEVA OPCIÓN: RECLAMAR GARANTÍA ── */}
-                              <button
-                                onClick={() => handleOpenClaim(c)}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.yellow, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}
-                              >
-                                <i className="ti ti-alert-triangle" style={{ fontSize: 15, color: T.yellow }} />
-                                Reclamar Garantía
-                              </button>
-
-                              <div style={{ borderTop: `1px solid ${T.border}`, margin: "3px 0" }} />
-                              <button onClick={() => handleDelete(c._id)} disabled={deleting === c._id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.red, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}>
-                                {deleting === c._id ? <Spinner size={14} /> : <i className="ti ti-trash" style={{ fontSize: 15, color: T.red }} />} Eliminar Cliente
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* PANEL DERECHO */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <QRPanel />
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px" }}>
-            <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Resumen de Clientes</div>
-            {[
-              { label: "Total registrados",  val: clients.length,                        color: T.text   },
-              { label: "Clientes activos",   val: clients.filter(c => c.active).length,  color: T.green  },
-              { label: "Clientes inactivos", val: clients.filter(c => !c.active).length, color: T.yellow },
-            ].map(({ label, val, color }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>
-                <span style={{ color: T.muted }}>{label}</span>
-                <span style={{ color, fontWeight: 500 }}>{val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
