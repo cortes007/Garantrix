@@ -1,6 +1,5 @@
 // App.jsx — Punto de entrada principal de la app
 // Orquesta la navegación entre páginas e inyecta el CSS global.
-
 import { useState } from "react";
 import { T, GLOBAL_CSS } from "./styles/tokens.js";
 import { Sidebar, TopBar } from "./components/ui.jsx";
@@ -12,25 +11,23 @@ import ValidarQR       from "./pages/ValidarQR.jsx";
 import Clientes        from "./pages/Clientes.jsx";
 import Configuracion   from "./pages/Configuracion.jsx";
 import GarantiaPublica from "./pages/GarantiaPublica.jsx";
+import Reclamaciones   from "./pages/Reclamaciones.jsx";
 
 export default function App({ user, onLogout }) {
-  const [page,         setPage]         = useState("dashboard"); // página activa
+  const [page,         setPage]         = useState("dashboard");
   const [warrantyCode, setWarrantyCode] = useState(null);
 
   const businessName = user?.businessName || "Mi Negocio";
 
-  // Función para navegar a la vista de garantía — úsala en cualquier botón
   const verGarantia = (code) => {
     setWarrantyCode(code);
     setPage("garantia");
   };
 
-  // Si estamos viendo una garantía, mostrar página completa sin sidebar ni topbar
   if (page === "garantia" && warrantyCode) {
     return (
       <>
         <style>{GLOBAL_CSS}</style>
-        {/* Botón volver flotante */}
         <button
           onClick={() => { setPage("clientes"); setWarrantyCode(null); }}
           style={{
@@ -52,7 +49,6 @@ export default function App({ user, onLogout }) {
     );
   }
 
-  // Botón de acción en el TopBar según la página activa
   const pageActions = {
     dashboard: (
       <button onClick={() => setPage("nueva")} style={{ display: "flex", alignItems: "center", gap: 7, background: T.green, color: T.navy, border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
@@ -66,13 +62,14 @@ export default function App({ user, onLogout }) {
     ),
   };
 
-  // Mapa de páginas
+  // ── Mapa de páginas ──────────────────────────────────────────
   const pages = {
-    dashboard: <Dashboard     setPage={setPage} verGarantia={verGarantia} />,
-    nueva:     <NuevaGarantia setPage={setPage} verGarantia={verGarantia} />,
-    validar:   <ValidarQR     verGarantia={verGarantia} />,
-    clientes:  <Clientes      setPage={setPage} verGarantia={verGarantia} />,
-    config:    <Configuracion user={user} onLogout={onLogout} />,
+    dashboard:     <Dashboard     setPage={setPage} verGarantia={verGarantia} />,
+    nueva:         <NuevaGarantia setPage={setPage} verGarantia={verGarantia} />,
+    validar:       <ValidarQR     verGarantia={verGarantia} />,
+    clientes:      <Clientes      setPage={setPage} verGarantia={verGarantia} />,
+    config:        <Configuracion user={user} onLogout={onLogout} />,
+    reclamaciones: <Reclamaciones setPage={setPage} />,
   };
 
   return (

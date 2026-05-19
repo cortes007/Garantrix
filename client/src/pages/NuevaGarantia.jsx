@@ -7,7 +7,7 @@ import { Spinner, Feedback, QRPanel } from "../components/ui.jsx";
 export default function NuevaGarantia({ setPage }) {
   const [form, setForm] = useState({
     clientName: "", clientEmail: "", clientPhone: "",
-    product: "", invoiceNumber: "", purchaseDate: "",
+    product: "", productDescription: "", invoiceNumber: "", purchaseDate: "",
     duration: "6", durationFrom: "today",
   });
   const [saving,  setSaving]  = useState(false);
@@ -17,9 +17,9 @@ export default function NuevaGarantia({ setPage }) {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async () => {
-    const { clientName, clientEmail, product, purchaseDate } = form;
-    if (!clientName || !clientEmail || !product || !purchaseDate) {
-      setMsg({ type: "err", text: "Nombre, email, producto y fecha de compra son obligatorios" });
+    const { clientName, clientEmail, product, productDescription, purchaseDate } = form;
+    if (!clientName || !clientEmail || !product || !productDescription || !purchaseDate) {
+      setMsg({ type: "err", text: "Nombre, email, producto, descripción y fecha de compra son obligatorios" });
       return;
     }
     setSaving(true); setMsg(null);
@@ -41,7 +41,7 @@ export default function NuevaGarantia({ setPage }) {
       const result = await apiFetch("/api/warranties", {
         method: "POST",
         body: JSON.stringify({
-          clientId, product: form.product,
+          clientId, product: form.product, productDescription: form.productDescription,
           invoiceNumber: form.invoiceNumber,
           purchaseDate: new Date(form.purchaseDate).toISOString(),
           startDate, endDate,
@@ -93,8 +93,12 @@ export default function NuevaGarantia({ setPage }) {
           {/* DETALLES DEL PRODUCTO */}
           <div style={{ fontSize: 10.5, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>Detalles del Producto</div>
           <div>
+            <label style={labelStyle}>Producto *</label>
+            <textarea style={{ ...fieldStyle, resize: "none", height: 72, lineHeight: 1.5 }} value={form.product} onChange={set("product")} placeholder="Ej. TV Samsung 55" />
+          </div>
+          <div>
             <label style={labelStyle}>Descripción del Producto / Servicio *</label>
-            <textarea style={{ ...fieldStyle, resize: "none", height: 72, lineHeight: 1.5 }} value={form.product} onChange={set("product")} placeholder="Ej. Reparación TV Samsung 55', cambio de panel..." />
+            <textarea style={{ ...fieldStyle, resize: "none", height: 72, lineHeight: 1.5 }} value={form.productDescription} onChange={set("productDescription")} placeholder="Ej. Reparación TV Samsung 55', cambio de panel..." />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
@@ -128,6 +132,7 @@ export default function NuevaGarantia({ setPage }) {
                 <strong style={{ color: T.text }}>Código:</strong> {created.warrantyCode}<br />
                 <strong style={{ color: T.text }}>Cliente:</strong> {created.clientId?.name} ({created.clientId?.email})<br />
                 <strong style={{ color: T.text }}>Producto:</strong> {created.product}<br />
+                <strong style={{ color: T.text }}>Descripción:</strong> {created.productDescription}<br />
                 <strong style={{ color: T.text }}>Válida desde:</strong> {new Date(created.startDate).toLocaleDateString()} hasta {new Date(created.endDate).toLocaleDateString()}
               </div>
             </div>

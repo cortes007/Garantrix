@@ -329,9 +329,21 @@ export default function GarantiaPublica({ warrantyCode: codeProp }) {
               <div style={{ paddingTop: 8 }}>
                 <DetailRow label="ID de Garantía"    value={warranty.warrantyCode}           mono highlight />
                 <DetailRow label="Titular"            value={warranty.clientId?.name} />
-                <DetailRow label="Producto / Servicio" value={warranty.product} />
-                {warranty.description && <DetailRow label="Descripción" value={warranty.description} />}
-                {warranty.invoiceNumber && <DetailRow label="N° de Factura" value={warranty.invoiceNumber} mono />}
+                <DetailRow label="Producto" value={warranty.product} />
+                {/* reemplaza la línea 333 */}
+                {warranty.productDescription && (
+                  <div style={{
+                    padding: "13px 0",
+                    borderBottom: `1px solid ${P.border}`,
+                  }}>
+                    <div style={{ fontSize: 12, color: P.muted, fontWeight: 500, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                      Descripción del producto/servicio
+                    </div>
+                    <div style={{ fontSize: 13.5, lineHeight: 1.7, color: P.text }}>
+                      {warranty.productDescription}
+                    </div>
+                  </div>
+                )}
                 <DetailRow label="Fecha de Compra"   value={fmt(warranty.purchaseDate)} />
                 <DetailRow label="Inicio de Garantía" value={fmt(warranty.startDate)} />
                 <DetailRow label="Vencimiento"        value={fmt(warranty.endDate)} highlight />
