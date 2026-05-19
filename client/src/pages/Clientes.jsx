@@ -19,6 +19,10 @@ export default function Clientes({ setPage, verGarantia }) {
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimMsg,     setClaimMsg]     = useState(null);
 
+  // Modal de selección de garantía para ver
+  const [viewModal,    setViewModal]    = useState(null); // { client, warranties[] }
+  const [viewSelected, setViewSelected] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -93,6 +97,106 @@ export default function Clientes({ setPage, verGarantia }) {
 
   return (
     <>
+      {/* MODAL SELECCIONAR GARANTÍA PARA VER */}
+      {viewModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }} onClick={() => setViewModal(null)}>
+          <div
+            className="gtx-fade"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "#0f1e38", border: `1px solid ${T.border}`,
+              borderRadius: 16, padding: 28, width: 420, maxWidth: "90vw",
+              display: "flex", flexDirection: "column", gap: 16,
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontFamily: "Syne", fontSize: 16, fontWeight: 700 }}>Ver Garantía</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
+                  Cliente: <span style={{ color: T.text }}>{viewModal.client.name}</span>
+                  {" · "}
+                  <span style={{ color: T.green }}>{viewModal.warranties.length} garantías</span>
+                </div>
+              </div>
+              <button onClick={() => setViewModal(null)} style={{ background: "none", border: "none", color: T.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Selector */}
+            <div>
+              <label style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 6 }}>
+                Selecciona la garantía
+              </label>
+              <select
+                value={viewSelected}
+                onChange={e => setViewSelected(e.target.value)}
+                style={{
+                  width: "100%", background: "rgba(0,0,0,0.3)", border: `1px solid ${T.border}`,
+                  borderRadius: 8, padding: "9px 12px", fontSize: 13, color: T.text,
+                  outline: "none", cursor: "pointer",
+                }}
+              >
+                {viewModal.warranties.map(w => (
+                  <option key={w._id} value={w._id} style={{ background: "#0f1e38" }}>
+                    {w.warrantyCode} — {w.product}
+                    {w.status === "ACTIVA" ? " ✓" : w.status === "RECLAMADA" ? " ⚠" : " ✕"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Preview rápido de la garantía seleccionada */}
+            {(() => {
+              const sel = viewModal.warranties.find(w => w._id === viewSelected);
+              if (!sel) return null;
+              return (
+                <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "10px 14px", fontSize: 12, display: "flex", flexDirection: "column", gap: 5 }}>
+                  {[
+                    { label: "Código",     val: sel.warrantyCode },
+                    { label: "Producto",   val: sel.product },
+                    { label: "Estado",     val: sel.status },
+                    { label: "Registrada", val: sel.createdAt ? fmt(sel.createdAt) : "—" },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: T.muted }}>{label}</span>
+                      <span style={{ color: T.text, fontWeight: 500 }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Botones */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setViewModal(null)}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 8, fontSize: 13, border: `1px solid ${T.border}`, background: "none", color: T.muted, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const sel = viewModal.warranties.find(w => w._id === viewSelected);
+                  if (sel) { verGarantia(sel.warrantyCode); setViewModal(null); }
+                }}
+                style={{
+                  flex: 2, padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  background: "#1e6fdc", color: "#fff", border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <i className="ti ti-eye" style={{ fontSize: 15 }} />
+                Ver Garantía Completa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL RECLAMAR GARANTÍA */}
       {claimModal && (
         <div style={{
@@ -254,18 +358,21 @@ export default function Clientes({ setPage, verGarantia }) {
                               </button>
                               <button
                                 onClick={async () => {
+                                  setOpenMenu(null);
                                   try {
                                     const data = await apiFetch(`/api/warranties?clientId=${c._id}`);
-                                    const ultima = data.warranties?.[0];
-                                    if (ultima) {
-                                      verGarantia(ultima.warrantyCode);
+                                    const todas = data.warranties || [];
+                                    if (todas.length === 0) {
+                                      setMsg({ type: "err", text: "Este cliente no tiene garantías registradas" });
+                                    } else if (todas.length === 1) {
+                                      verGarantia(todas[0].warrantyCode);
                                     } else {
-                                      alert("Este cliente no tiene garantías registradas");
+                                      setViewModal({ client: c, warranties: todas });
+                                      setViewSelected(todas[0]._id);
                                     }
                                   } catch {
-                                    alert("Error al buscar garantías");
+                                    setMsg({ type: "err", text: "Error al buscar garantías" });
                                   }
-                                  setOpenMenu(null);
                                 }}
                                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 6, fontSize: 13, color: T.text, cursor: "pointer", border: "none", background: "none", width: "100%", textAlign: "left" }}
                               >
@@ -306,7 +413,7 @@ export default function Clientes({ setPage, verGarantia }) {
             {[
               { label: "Total registrados",  val: clients.length,                        color: T.text   },
               { label: "Clientes activos",   val: clients.filter(c => c.active).length,  color: T.green  },
-              { label: "Clientes inactivos", val: clients.filter(c => !c.active).length, color: T.yellow },
+              
             ].map(({ label, val, color }) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>
                 <span style={{ color: T.muted }}>{label}</span>

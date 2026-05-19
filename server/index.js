@@ -69,6 +69,7 @@ const warrantySchema = new mongoose.Schema(
     clientId:      { type: mongoose.Schema.Types.ObjectId, ref: "Client", required: true },
     warrantyCode:  { type: String, unique: true },
     product:       { type: String, required: true, trim: true },
+    productDescription: { type: String, trim: true },
     description:   { type: String, trim: true },
     invoiceNumber: { type: String, trim: true },
     purchaseDate:  { type: Date, required: true },
@@ -430,8 +431,8 @@ app.get("/api/warranties/:id", requireAuth, async (req, res) => {
 // POST /api/warranties — crear
 app.post("/api/warranties", requireAuth, async (req, res) => {
   try {
-    const { clientId, product, description, invoiceNumber, purchaseDate, startDate, endDate } = req.body;
-    if (!clientId || !product || !purchaseDate || !startDate || !endDate)
+    const { clientId, product, productDescription, description, invoiceNumber, purchaseDate, startDate, endDate } = req.body;
+    if (!clientId || !product || !productDescription || !purchaseDate || !startDate || !endDate)
       return res.status(400).json({ message: "Faltan campos requeridos" });
  
     // Verificar que el cliente pertenece al usuario
@@ -439,7 +440,7 @@ app.post("/api/warranties", requireAuth, async (req, res) => {
     if (!client) return res.status(404).json({ message: "Cliente no encontrado" });
  
     const warranty = await Warranty.create({
-      userId: req.user.id, clientId, product, description,
+      userId: req.user.id, clientId, product, productDescription: req.body.productDescription,
       invoiceNumber, purchaseDate, startDate, endDate,
     });
  
