@@ -448,7 +448,7 @@ app.post("/api/warranties", requireAuth, async (req, res) => {
     // 🔥 Enviamos el Webhook a n8n después de crear la garantía
     try {
       // Usamos la URL de producción (sin el -test) ya que publicaste el flujo
-      const N8N_URL = "https://mervin-interterminal-eileen.ngrok-free.dev/webhook/garantix"; 
+      const N8N_URL = "http://localhost:5678/webhook/garantix"; 
       
       // Validamos que el cliente realmente exista en la BD antes de leer sus propiedades
       if (populated.clientId) {
