@@ -84,7 +84,6 @@ export default function Dashboard({ setPage }) {
           ) : [
             { label: "Total garantías",  val: stats?.warranties?.total   ?? 0, color: T.text   },
             { label: "Vencidas",         val: stats?.warranties?.expired ?? 0, color: T.red    },
-            { label: "Reclamadas",   val: stats?.warranties?.inClaim ?? 0, color: T.yellow },
             { label: "Total clientes",   val: stats?.clients?.total      ?? 0, color: T.green  },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12.5 }}>
